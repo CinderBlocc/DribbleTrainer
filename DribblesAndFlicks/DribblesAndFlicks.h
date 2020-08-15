@@ -1,12 +1,13 @@
 #pragma once
 #pragma comment(lib, "BakkesMod.lib")
 #include "bakkesmod/plugin/bakkesmodplugin.h"
-#include "../_UP-TO-DATE-HELPER-FILES/RenderingTools.h"
+#include "RenderingTools.h"
 #include <chrono>
 
 class DribblesAndFlicks : public BakkesMod::Plugin::BakkesModPlugin
 {
-private:
+    RT::RenderingAssistant RA;
+
     std::shared_ptr<float> angularReduction;
     std::shared_ptr<float> floorThreshold;
     std::shared_ptr<float> maxFlickDistance;

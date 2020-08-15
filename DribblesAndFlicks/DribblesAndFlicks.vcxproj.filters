@@ -18,15 +18,9 @@
     <ClInclude Include="DribblesAndFlicks.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\_UP-TO-DATE-HELPER-FILES\RenderingTools.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DribblesAndFlicks.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\_UP-TO-DATE-HELPER-FILES\RenderingTools.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

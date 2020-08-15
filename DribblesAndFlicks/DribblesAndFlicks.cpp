@@ -146,8 +146,10 @@ void DribblesAndFlicks::Render(CanvasWrapper canvas)
     if(!gameWrapper->IsInFreeplay())
         return;
 
+    CameraWrapper camera = gameWrapper->GetCamera();
+
     //Nullchecks
-    bool haveCamera = !gameWrapper->GetCamera().IsNull();
+    bool haveCamera = !camera.IsNull();
     bool haveCar = !gameWrapper->GetLocalCar().IsNull();
     bool haveServer = !gameWrapper->GetGameEventAsServer().IsNull();
     bool haveBall = false;
@@ -157,13 +159,20 @@ void DribblesAndFlicks::Render(CanvasWrapper canvas)
             haveBall = true;
     }
 
-    //Create frustum - NEED TO CHECK IF haveCamera IS TRUE BEFORE USING FRUSTUM
-    RT::Frustum frustum;
-    if(haveCamera)
+    if(!haveCamera)
     {
-        CameraWrapper camera = gameWrapper->GetCamera();
-        frustum = RT::CreateFrustum(canvas, camera);
+        return;
     }
+
+
+    //Create frustum - NEED TO CHECK IF haveCamera IS TRUE BEFORE USING FRUSTUM
+    RA.frustum = RT::Frustum(canvas, camera);
+    //RT::Frustum frustum;
+    //if(haveCamera)
+    //{
+    //    CameraWrapper camera = gameWrapper->GetCamera();
+    //    frustum = RT::CreateFrustum(canvas, camera);
+    //}
 
     //Show which modes are enabled
     bool dribbles = cvarManager->getCvar(toggleDribbleModeName).getBoolValue();
