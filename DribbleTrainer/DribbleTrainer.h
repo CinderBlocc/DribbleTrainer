@@ -4,7 +4,7 @@
 #include "RenderingTools.h"
 #include <chrono>
 
-class DribblesAndFlicks : public BakkesMod::Plugin::BakkesModPlugin
+class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
 {
     RT::RenderingAssistant RA;
 

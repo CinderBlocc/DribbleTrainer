@@ -1,4 +1,4 @@
-#include "DribblesAndFlicks.h"
+#include "DribbleTrainer.h"
 #include "bakkesmod\wrappers\includes.h"
 #define _USE_MATH_DEFINES
 #include <math.h>
@@ -9,7 +9,7 @@
 //using namespace std;
 using namespace std::chrono;
 
-BAKKESMOD_PLUGIN(DribblesAndFlicks, "Freeplay training for dribbles, flicks, and catches", "1.0", PLUGINTYPE_FREEPLAY)
+BAKKESMOD_PLUGIN(DribbleTrainer, "Freeplay training for dribbles, flicks, and catches", "1.0", PLUGINTYPE_FREEPLAY)
 
 /*
 TO-DO
@@ -62,7 +62,7 @@ std::string catchSpeedName = "Dribble_CatchSpeed",
             toggleSafeZoneName = "Dribble_ShowSafeZone",
             toggleFloorHeightName = "Dribble_ShowFloorHeight",
             toggleLogFlickSpeedName = "Dribble_LogFlickSpeed";
-void DribblesAndFlicks::onLoad()
+void DribbleTrainer::onLoad()
 {
     srand(clock());
 
@@ -91,8 +91,8 @@ void DribblesAndFlicks::onLoad()
     cvarManager->registerCvar(toggleLogFlickSpeedName, "1", "Save flick speed to bakkesmod.log so you can see them later");
 
     //Event hooks
-    gameWrapper->HookEvent("Function Engine.GameViewportClient.Tick", std::bind(&DribblesAndFlicks::Tick, this));
-    gameWrapper->RegisterDrawable(bind(&DribblesAndFlicks::Render, this, std::placeholders::_1));
+    gameWrapper->HookEvent("Function Engine.GameViewportClient.Tick", std::bind(&DribbleTrainer::Tick, this));
+    gameWrapper->RegisterDrawable(bind(&DribbleTrainer::Render, this, std::placeholders::_1));
 
 
     //TEST JUNK
@@ -103,10 +103,10 @@ void DribblesAndFlicks::onLoad()
     testLocZ = std::make_shared<float>(0.f);
     cvarManager->registerCvar("Dribble_TestZ", "100", "Test location Z", true, true, 0, true, 10000).bindTo(testLocZ);
 }
-void DribblesAndFlicks::onUnload() {}
+void DribbleTrainer::onUnload() {}
 
 //Utility
-bool DribblesAndFlicks::ShouldRun()
+bool DribbleTrainer::ShouldRun()
 {
     if(!gameWrapper->IsInFreeplay())
         return false;
@@ -122,7 +122,7 @@ bool DribblesAndFlicks::ShouldRun()
 
     return true;
 }
-void DribblesAndFlicks::RequestToggle(std::vector<std::string> params)
+void DribbleTrainer::RequestToggle(std::vector<std::string> params)
 {
     if(params.size() != 2 || !gameWrapper->IsInFreeplay())
         return;
@@ -141,7 +141,7 @@ void DribblesAndFlicks::RequestToggle(std::vector<std::string> params)
         cvarManager->executeCommand(toggleFlicksModeName + " " + newval);
     }
 }
-void DribblesAndFlicks::Render(CanvasWrapper canvas)
+void DribbleTrainer::Render(CanvasWrapper canvas)
 {
     if(!gameWrapper->IsInFreeplay())
         return;
@@ -402,7 +402,7 @@ void DribblesAndFlicks::Render(CanvasWrapper canvas)
 }
 
 //Reset
-void DribblesAndFlicks::Reset()
+void DribbleTrainer::Reset()
 {
     if(!ShouldRun()) return;
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
@@ -424,7 +424,7 @@ void DribblesAndFlicks::Reset()
     ball.SetVelocity(car.GetVelocity() + ballResetVelocity);
     ball.SetAngularVelocity(ballAngular, false);
 }
-void DribblesAndFlicks::GetResetValues()
+void DribbleTrainer::GetResetValues()
 {
     if(!ShouldRun()) return;
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
@@ -531,7 +531,7 @@ void DribblesAndFlicks::GetResetValues()
 }
 
 //Tick
-void DribblesAndFlicks::Tick()
+void DribbleTrainer::Tick()
 {
     if(!ShouldRun()) return;
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
@@ -589,14 +589,14 @@ void DribblesAndFlicks::Tick()
 }
 
 //Catch
-void DribblesAndFlicks::PrepareToLaunch()
+void DribbleTrainer::PrepareToLaunch()
 {
     preparingToLaunch = true;
     preparationStartTime = clock();
     launchNum++;
-    gameWrapper->SetTimeout(std::bind(&DribblesAndFlicks::Launch, this, launchNum), *preparationTime);
+    gameWrapper->SetTimeout(std::bind(&DribbleTrainer::Launch, this, launchNum), *preparationTime);
 }
-void DribblesAndFlicks::GetNextLaunchDirection()
+void DribbleTrainer::GetNextLaunchDirection()
 {
     if(!ShouldRun()) return;
 
@@ -626,7 +626,7 @@ void DribblesAndFlicks::GetNextLaunchDirection()
 
     PrepareToLaunch();
 }
-void DribblesAndFlicks::HoldBallInLaunchPosition()
+void DribbleTrainer::HoldBallInLaunchPosition()
 {
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
     BallWrapper ball = server.GetBall();
@@ -649,7 +649,7 @@ void DribblesAndFlicks::HoldBallInLaunchPosition()
     ball.SetVelocity(Vector{0,0,0});
     ball.SetLocation(spawnLocation);
 }
-void DribblesAndFlicks::Launch(int launchIndex)
+void DribbleTrainer::Launch(int launchIndex)
 {
     //Launch the ball at roughly the speed of the car
     //Use redirectplugin code for this
@@ -717,7 +717,7 @@ void DribblesAndFlicks::Launch(int launchIndex)
     Vector randOffset = {randX, randY, 0};
     Vector launchAngle = CalculateLaunchAngle(ball.GetLocation(), car.GetLocation() + randOffset, 5000 * nextLaunch.launchMagnitude);*/
 }
-Vector DribblesAndFlicks::CalculateLaunchAngle(Vector start, Vector target, float v)
+Vector DribbleTrainer::CalculateLaunchAngle(Vector start, Vector target, float v)
 {
     //Convert 3D trajectory into 2D equation, just solving for angle to reach X coordinate
     //https://en.wikipedia.org/wiki/Projectile_motion --> Angle theta required to hit coordinate (x,y)

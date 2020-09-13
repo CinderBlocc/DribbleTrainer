@@ -9,7 +9,7 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>
     <ProjectGuid>{1F35838D-C04E-461B-86B9-7ABF506C01FB}</ProjectGuid>
-    <RootNamespace>DribblesAndFlicks</RootNamespace>
+    <RootNamespace>DribbleTrainer</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -48,14 +48,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="DribblesAndFlicks.h" />
+    <ClInclude Include="DribbleTrainer.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DribblesAndFlicks.cpp" />
+    <ClCompile Include="DribbleTrainer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win32\bakkesmod\data\quicksettings\dribble_flick_catch.qk" />
-    <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win32\bakkesmod\plugins\settings\DribblesAndFlicks.set" />
+    <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win32\bakkesmod\data\quicksettings\DribbleTrainer.qk" />
+    <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win32\bakkesmod\plugins\settings\DribbleTrainer.set" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
