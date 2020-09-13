@@ -1,8 +1,16 @@
 #pragma once
-#pragma comment(lib, "BakkesMod.lib")
+#pragma comment(lib, "PluginSDK.lib")
 #include "bakkesmod/plugin/bakkesmodplugin.h"
 #include "RenderingTools.h"
 #include <chrono>
+
+#define CVAR_CATCH_SPEED  "Dribble_CatchSpeed"
+#define CVAR_CATCH_ANGLE  "Dribble_CatchAngle"
+#define CVAR_TOGGLE_DRIBBLE_MODE  "Dribble_ToggleDribbleMode"
+#define CVAR_TOGGLE_FLICKS_MODE  "Dribble_ToggleFlicksMode"
+#define CVAR_SHOW_SAFE_ZONE  "Dribble_ShowSafeZone"
+#define CVAR_SHOW_FLOOR_HEIGHT  "Dribble_ShowFloorHeight"
+#define CVAR_LOG_FLICK_SPEED  "Dribble_LogFlickSpeed"
 
 class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
 {

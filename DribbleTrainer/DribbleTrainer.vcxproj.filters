@@ -13,19 +13,136 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="RenderingTools">
+      <UniqueIdentifier>{db734e05-177d-41b0-befa-63e4cba40db2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderingTools\Extra">
+      <UniqueIdentifier>{a95cd8a1-0de6-477f-974e-87382d50da5a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderingTools\Objects">
+      <UniqueIdentifier>{5560bdfd-4f8d-4fc6-83c7-2372373b678d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="DribblesAndFlicks.h">
+    <ClInclude Include="DribbleTrainer.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Extra\WrapperStructsExtensions.h">
+      <Filter>RenderingTools\Extra</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Extra\RenderingMath.h">
+      <Filter>RenderingTools\Extra</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Extra\RenderingAssistant.h">
+      <Filter>RenderingTools\Extra</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Chevron.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Circle.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Circle2D.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Cone.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Cube.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Cylinder.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Frustum.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Grid.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Line.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Matrix3.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Plane.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Sphere.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\Triangle.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\Objects\VisualCamera.h">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClInclude>
+    <ClInclude Include="..\RenderingTools\RenderingTools.h">
+      <Filter>RenderingTools</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DribblesAndFlicks.cpp">
+    <ClCompile Include="DribbleTrainer.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Extra\WrapperStructsExtensions.cpp">
+      <Filter>RenderingTools\Extra</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Extra\RenderingMath.cpp">
+      <Filter>RenderingTools\Extra</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Extra\RenderingAssistant.cpp">
+      <Filter>RenderingTools\Extra</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Chevron.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Circle.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Circle2D.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Cone.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Cube.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Cylinder.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Frustum.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Grid.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Line.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Matrix3.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Plane.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Sphere.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\Triangle.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Objects\VisualCamera.cpp">
+      <Filter>RenderingTools\Objects</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\RenderingTools.cpp">
+      <Filter>RenderingTools</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win32\bakkesmod\plugins\settings\DribblesAndFlicks.set" />
-    <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win32\bakkesmod\data\quicksettings\dribble_flick_catch.qk" />
+    <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win64\bakkesmod\data\quicksettings\DribbleTrainer.qk" />
+    <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win64\bakkesmod\plugins\settings\DribbleTrainer.set" />
   </ItemGroup>
 </Project>
