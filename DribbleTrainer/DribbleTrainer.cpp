@@ -123,23 +123,19 @@ bool DribbleTrainer::ShouldRun()
 
     return true;
 }
+
 void DribbleTrainer::RequestToggle(std::vector<std::string> params)
 {
     if(params.size() != 2 || !gameWrapper->IsInFreeplay())
         return;
 
-    bool newval = false;
     if(params.at(1) == "dribble")
     {
-        if(!(*bEnableDribbleMode))
-            newval = true;
-        cvarManager->getCvar(CVAR_TOGGLE_DRIBBLE_MODE).setValue(newval);
+        cvarManager->getCvar(CVAR_TOGGLE_DRIBBLE_MODE).setValue(!(*bEnableDribbleMode));
     }
     if(params.at(1) == "flick")
     {
-        if(!(*bEnableFlicksMode))
-            newval = true;
-        cvarManager->getCvar(CVAR_TOGGLE_FLICKS_MODE).setValue(newval);
+        cvarManager->getCvar(CVAR_TOGGLE_FLICKS_MODE).setValue(!(*bEnableFlicksMode));
     }
 }
 
@@ -174,15 +170,14 @@ void DribbleTrainer::GetResetValues()
     BallWrapper ball = server.GetBall();
     CarWrapper car = gameWrapper->GetLocalCar();
 
-    Quat carQuat = RotatorToQuat(car.GetRotation());
-    RT::Matrix3 carMat = RT::Matrix3(carQuat);
+    RT::Matrix3 carMat(car.GetRotation());
 
     Vector carVelocity = car.GetVelocity();
     Vector carAngular = car.GetAngularVelocity();
 
     float speedPerc = carVelocity.magnitude() / 2300;
     float angularPerc = abs(carAngular.Z) / 5.5f;
-    Vector rightOffset = carMat.right * (300 * angularPerc * speedPerc);
+    Vector rightOffset = carMat.right * (350 * angularPerc * speedPerc);
     Vector forwardOffset = carMat.forward * accelDotFwd * 4 * speedPerc;
     Vector spawnOffset = {0,0,150};
     Vector velocityAdjust = {0,0,0};
@@ -194,7 +189,7 @@ void DribbleTrainer::GetResetValues()
         {
             //right turn
             spawnOffset = spawnOffset + rightOffset;
-            spawnOffset.Z *= (1 - angularPerc);
+            spawnOffset.Z *= (1 - angularPerc * .75f);
             forwardOffset = forwardOffset - forwardOffset * angularPerc;
             velocityAdjust = velocityAdjust - (carMat.right * velocityRight);//carRight velocity is negative from 0 to -215 without powerslide
         }
@@ -202,9 +197,17 @@ void DribbleTrainer::GetResetValues()
         {
             //left turn
             spawnOffset = spawnOffset - rightOffset;
-            spawnOffset.Z *= (1 - angularPerc);
+            spawnOffset.Z *= (1 - angularPerc * .75f);
             forwardOffset = forwardOffset - forwardOffset * angularPerc;
             velocityAdjust = velocityAdjust - (carMat.right * velocityRight);//carRight velocity is positive from 0 to 215 without powerslide
+        }
+
+        velocityAdjust /= 1.5f;
+
+        if(velocityAdjust.magnitude() > 90)
+        {
+            Vector velocityAdjustDirection = velocityAdjust; velocityAdjustDirection.normalize();
+            velocityAdjust = velocityAdjustDirection * 100;
         }
     }
 
@@ -228,7 +231,7 @@ void DribbleTrainer::GetResetValues()
     bool fwdValsAreOK = false;
     bool rightValsAreOK = false;
 
-    float valueBufferTime = .5f;//Average over .25 seconds
+    float valueBufferTime = .25f;//Average over .25 seconds
     while(!fwdValsAreOK || !rightValsAreOK)
     {
         //Erase values from vector if they are older than the buffer time
@@ -343,6 +346,7 @@ void DribbleTrainer::PrepareToLaunch()
     launchNum++;
     gameWrapper->SetTimeout(std::bind(&DribbleTrainer::Launch, this, launchNum), *preparationTime);
 }
+
 void DribbleTrainer::GetNextLaunchDirection()
 {
     if(!ShouldRun()) return;
@@ -373,6 +377,7 @@ void DribbleTrainer::GetNextLaunchDirection()
 
     PrepareToLaunch();
 }
+
 void DribbleTrainer::HoldBallInLaunchPosition()
 {
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
@@ -396,6 +401,7 @@ void DribbleTrainer::HoldBallInLaunchPosition()
     ball.SetVelocity(Vector{0,0,0});
     ball.SetLocation(spawnLocation);
 }
+
 void DribbleTrainer::Launch(int launchIndex)
 {
     //Launch the ball at roughly the speed of the car
@@ -464,6 +470,7 @@ void DribbleTrainer::Launch(int launchIndex)
     Vector randOffset = {randX, randY, 0};
     Vector launchAngle = CalculateLaunchAngle(ball.GetLocation(), car.GetLocation() + randOffset, 5000 * nextLaunch.launchMagnitude);*/
 }
+
 Vector DribbleTrainer::CalculateLaunchAngle(Vector start, Vector target, float v)
 {
     //Convert 3D trajectory into 2D equation, just solving for angle to reach X coordinate

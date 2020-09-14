@@ -142,26 +142,25 @@ void DribbleTrainer::DrawSafeZone(CanvasWrapper canvas)
     canvas.DrawLine(canvas.Project((carMat.forward * -5) + carLocation), canvas.Project((carMat.forward * -50) + carLocation), 2);//back
     canvas.DrawLine(canvas.Project((carMat.right   * -5) + carLocation), canvas.Project((carMat.right   * -50) + carLocation), 2);//left
 
-    //Good range
+    //Draw where the ball will spawn when it resets
     Vector safeZoneOffset = {0,0,0};
     safeZoneOffset = safeZoneOffset + (carMat.forward * ballResetPosFwd);
     safeZoneOffset = safeZoneOffset + (carMat.right * ballResetPosRight);
     safeZoneOffset.Z = ballResetPosZ;
 
+    canvas.SetColor(LinearColor{0,100,255,255});
+    RT::DrawVector(canvas, ballResetVelocity, carLocation + safeZoneOffset);
+    canvas.SetPosition(canvas.Project(carLocation + safeZoneOffset) - Vector2{20, 20});
+    canvas.DrawString(std::to_string(ballResetVelocity.magnitude()));
 
-    // SPHERE SHOULD BE OCCLUDED BY CAR'S HITBOX //
     RT::Sphere ballResetSphere = RT::Sphere(carLocation + safeZoneOffset, Quat(), ball.GetRadius());
-    canvas.SetColor(LinearColor{0,255,0,100});
+    canvas.SetColor(LinearColor{0,255,0,50});
     ballResetSphere.Draw(canvas, RA.frustum, camera.GetLocation(), 64);
-
-    RT::Circle goodRangeCircle;
-    goodRangeCircle.radius = 20;
-    goodRangeCircle.location = carLocation + safeZoneOffset;
-    goodRangeCircle.lineThickness = 2;
-    //goodRangeCircle.Draw(canvas, RA.frustum);
 
     //Car stable circle
     canvas.SetColor(LinearColor{0,255,0,100});
+    RT::Circle goodRangeCircle;
+    goodRangeCircle.radius = 20;
     goodRangeCircle.location = carLocation;
     goodRangeCircle.lineThickness = 3;
     goodRangeCircle.orientation = carMat.ToQuat();
@@ -239,23 +238,23 @@ void DribbleTrainer::DrawLaunchTimer(CanvasWrapper canvas)
     BallWrapper ball = server.GetBall();
     if(ball.IsNull()) { return; }
 
+    //Orient the circle so that it points at the camera. Rotate circle as timer counts down to keep it centered
     float piePercentage = 1 - (clock() - preparationStartTime) / (*preparationTime * CLOCKS_PER_SEC);
     RT::Matrix3 directionMatrix = RT::LookAt(ball.GetLocation(), camera.GetLocation(), LookAtAxis::AXIS_UP, CONST_PI_F * -piePercentage + CONST_PI_F);
-
-    RT::Circle circleAroundBall;
-    circleAroundBall.radius = ball.GetRadius();
-    circleAroundBall.location = ball.GetLocation();
-    circleAroundBall.orientation = directionMatrix.ToQuat();
-    circleAroundBall.lineThickness = 4;
-    circleAroundBall.piePercentage = piePercentage;
-        
+    
+    //Determine the number of steps the circle should have to maintain visual fidelity
     constexpr int minSteps = 8;
     constexpr int maxSteps = 40;
     float distancePerc = RT::GetVisualDistance(canvas, RA.frustum, camera, ball.GetLocation());
     int calcSteps = static_cast<int>(maxSteps * distancePerc);
+    
+    //Create the circle
+    RT::Circle circleAroundBall(ball.GetLocation(), directionMatrix.ToQuat(), ball.GetRadius());
+    circleAroundBall.lineThickness = 4;
+    circleAroundBall.piePercentage = piePercentage;
     circleAroundBall.steps = max(calcSteps, minSteps);
 
-    LinearColor launchColor = RT::GetPercentageColor(1 - nextLaunch.launchMagnitude);
-    canvas.SetColor(launchColor);
-    circleAroundBall.Draw(canvas, RA.frustum);//RT::DrawCircle(canvas, frustum, circleAroundBall);
+    //Draw the circle. Change color based on how fast the ball will be launched
+    canvas.SetColor(RT::GetPercentageColor(1 - nextLaunch.launchMagnitude));
+    circleAroundBall.Draw(canvas, RA.frustum);
 }
