@@ -4,13 +4,20 @@
 #include "RenderingTools.h"
 #include <chrono>
 
-#define CVAR_CATCH_SPEED  "Dribble_CatchSpeed"
-#define CVAR_CATCH_ANGLE  "Dribble_CatchAngle"
+#define NOTIFIER_RESET            "DribbleReset"
+#define NOTIFIER_LAUNCH           "DribbleLaunch"
+#define NOTIFIER_REQUEST_MODE     "DribbleRequestModeToggle"
+#define CVAR_ANGULAR_REDUCTION    "Dribble_AngularReduction"
+#define CVAR_BALL_FLOOR_HEIGHT    "Dribble_BallFloorHeight"
+#define CVAR_BALL_MAX_DISTANCE    "Dribble_BallMaxDistance"
+#define CVAR_CATCH_PREPARATION    "Dribble_CatchPreparation"
+#define CVAR_CATCH_SPEED          "Dribble_CatchSpeed"
+#define CVAR_CATCH_ANGLE          "Dribble_CatchAngle"
 #define CVAR_TOGGLE_DRIBBLE_MODE  "Dribble_ToggleDribbleMode"
-#define CVAR_TOGGLE_FLICKS_MODE  "Dribble_ToggleFlicksMode"
-#define CVAR_SHOW_SAFE_ZONE  "Dribble_ShowSafeZone"
-#define CVAR_SHOW_FLOOR_HEIGHT  "Dribble_ShowFloorHeight"
-#define CVAR_LOG_FLICK_SPEED  "Dribble_LogFlickSpeed"
+#define CVAR_TOGGLE_FLICKS_MODE   "Dribble_ToggleFlicksMode"
+#define CVAR_SHOW_SAFE_ZONE       "Dribble_ShowSafeZone"
+#define CVAR_SHOW_FLOOR_HEIGHT    "Dribble_ShowFloorHeight"
+#define CVAR_LOG_FLICK_SPEED      "Dribble_LogFlickSpeed"
 
 class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
 {
@@ -20,6 +27,12 @@ class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
     std::shared_ptr<float> floorThreshold;
     std::shared_ptr<float> maxFlickDistance;
     std::shared_ptr<float> preparationTime;
+
+    std::shared_ptr<bool> bEnableDribbleMode;
+    std::shared_ptr<bool> bEnableFlicksMode;
+    std::shared_ptr<bool> bShowSafeZone;
+    std::shared_ptr<bool> bShowFloorHeight;
+    std::shared_ptr<bool> bLogFlickSpeed;
 
     //TEST JUNK
     std::shared_ptr<float> testLocX;
@@ -71,10 +84,14 @@ public:
     //Utility
     bool ShouldRun();
     void RequestToggle(std::vector<std::string> params);
-    void Render(CanvasWrapper canvas);
     
-    //Tick
+    //Render and Tick
+    void Render(CanvasWrapper canvas);
     void Tick();
+    void DrawModesStrings(CanvasWrapper canvas);
+    void DrawFloorHeight(CanvasWrapper canvas);
+    void DrawSafeZone(CanvasWrapper canvas);
+    void DrawLaunchTimer(CanvasWrapper canvas);
 
     //Reset
     void Reset();

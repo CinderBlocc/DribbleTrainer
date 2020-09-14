@@ -90,6 +90,7 @@
     <ClCompile Include="..\RenderingTools\Objects\Triangle.cpp" />
     <ClCompile Include="..\RenderingTools\Objects\VisualCamera.cpp" />
     <ClCompile Include="..\RenderingTools\RenderingTools.cpp" />
+    <ClCompile Include="DribbleRender.cpp" />
     <ClCompile Include="DribbleTrainer.cpp" />
   </ItemGroup>
   <ItemGroup>

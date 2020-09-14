@@ -1,12 +1,8 @@
 #include "DribbleTrainer.h"
 #include "bakkesmod\wrappers\includes.h"
-#define _USE_MATH_DEFINES
-#include <math.h>
 #include <time.h>
 #include <ctime>
 #include <cstdlib>
-
-constexpr float M_PI_Float = static_cast<float>(M_PI);
 
 //using namespace std;
 using namespace std::chrono;
@@ -14,12 +10,7 @@ using namespace std::chrono;
 BAKKESMOD_PLUGIN(DribbleTrainer, "Freeplay training for dribbles, flicks, and catches", "1.0", PLUGINTYPE_FREEPLAY)
 
 /*
-
-    - Convert all "getCvar" for boolean calls to shared_ptr binds
-    - Convert the rest of the cvar and notifier strings to #defines
     - Break up rendering function into multiple functions
-    - if(!logFlickSpeed) don't have it pop up in chat
-    - Make sure during catch preparation time the ball doesn't go out of bounds in the corners
 */
 
 
@@ -30,8 +21,7 @@ TO-DO
     - Add catch practice
         - Add velocity prediction
         - LEFT OFF HERE: https://www.youtube.com/watch?v=RhUdv0jjfcE&list=PLqwfRVlgGdFAZeT_o-ASucXoFsajXMirw&index=12
-
-    - Align safe zone circle's rotation to car so it doesnt spin while turning
+        - Make sure during catch preparation time the ball doesn't go out of bounds in the corners
 */
 /*
     - Make safe zone dynamic
@@ -73,40 +63,45 @@ void DribbleTrainer::onLoad()
     srand(clock());
 
     //Notifiers
-    cvarManager->registerNotifier("DribbleReset", [this](std::vector<std::string> params){Reset();}, "Resets ball to dribbling position", PERMISSION_ALL);
-    cvarManager->registerNotifier("DribbleLaunch", [this](std::vector<std::string> params){GetNextLaunchDirection();}, "Launch the ball toward your car for catch practice", PERMISSION_ALL);
-    cvarManager->registerNotifier("DribbleRequestModeToggle", [this](std::vector<std::string> params){RequestToggle(params);}, "Launch the ball toward your car for catch practice", PERMISSION_ALL);
+    cvarManager->registerNotifier(NOTIFIER_RESET,        [this](std::vector<std::string> params){Reset();}, "Resets ball to dribbling position", PERMISSION_ALL);
+    cvarManager->registerNotifier(NOTIFIER_LAUNCH,       [this](std::vector<std::string> params){GetNextLaunchDirection();}, "Launch the ball toward your car for catch practice", PERMISSION_ALL);
+    cvarManager->registerNotifier(NOTIFIER_REQUEST_MODE, [this](std::vector<std::string> params){RequestToggle(params);}, "Launch the ball toward your car for catch practice", PERMISSION_ALL);
     
     //Sliders
     angularReduction = std::make_shared<float>(0.f);
-    floorThreshold = std::make_shared<float>(0.f);
+    floorThreshold   = std::make_shared<float>(0.f);
     maxFlickDistance = std::make_shared<float>(0.f);
-    preparationTime = std::make_shared<float>(0.f);
-    cvarManager->registerCvar("Dribble_AngularReduction", "0.5", "How much the angular velocity should be reduced on reset", true, true, 0, true, 1).bindTo(angularReduction);
-    cvarManager->registerCvar("Dribble_BallFloorHeight", "2", "How close the ball can get to the floor before resetting", true, true, 0, true, 100000).bindTo(floorThreshold);
-    cvarManager->registerCvar("Dribble_BallMaxDistance", "1250", "Max distance the ball can move before resetting to car", true, true, 300, true, 100000).bindTo(maxFlickDistance);
-    cvarManager->registerCvar("Dribble_CatchPreparation", "2", "Preparation time before launching", true, true, 0, true, 20).bindTo(preparationTime);
-    cvarManager->registerCvar(CVAR_CATCH_SPEED, "(1500, 3500)", "Launch speed randomization range", true, true, 0, true, 5000);
-    cvarManager->registerCvar(CVAR_CATCH_ANGLE, "(15, 75)", "Launch angle randomization range", true, true, 10, true, 90);
+    preparationTime  = std::make_shared<float>(0.f);
+    cvarManager->registerCvar(CVAR_ANGULAR_REDUCTION, "0.5",          "How much the angular velocity should be reduced on reset", true, true, 0,   true, 1).bindTo(angularReduction);
+    cvarManager->registerCvar(CVAR_BALL_FLOOR_HEIGHT, "2",            "How close the ball can get to the floor before resetting", true, true, 0,   true, 100000).bindTo(floorThreshold);
+    cvarManager->registerCvar(CVAR_BALL_MAX_DISTANCE, "1250",         "Max distance the ball can move before resetting to car",   true, true, 300, true, 100000).bindTo(maxFlickDistance);
+    cvarManager->registerCvar(CVAR_CATCH_PREPARATION, "2",            "Preparation time before launching", true, true, 0,  true, 20).bindTo(preparationTime);
+    cvarManager->registerCvar(CVAR_CATCH_SPEED,       "(1500, 3500)", "Launch speed randomization range",  true, true, 0,  true, 5000);
+    cvarManager->registerCvar(CVAR_CATCH_ANGLE,       "(15, 75)",     "Launch angle randomization range",  true, true, 10, true, 90);
     
     //Bools
-    cvarManager->registerCvar(CVAR_TOGGLE_DRIBBLE_MODE, "0", "Reset the ball if it falls below floor height");
-    cvarManager->registerCvar(CVAR_TOGGLE_FLICKS_MODE, "0", "Reset the ball if it goes farther than max flick distance");
-    cvarManager->registerCvar(CVAR_SHOW_SAFE_ZONE, "1", "Show where the ball should be to keep it balanced");
-    cvarManager->registerCvar(CVAR_SHOW_FLOOR_HEIGHT, "0", "Show where the reset threshold is for dribbling");
-    cvarManager->registerCvar(CVAR_LOG_FLICK_SPEED, "1", "Save flick speed to bakkesmod.log so you can see them later");
+    bEnableDribbleMode = std::make_shared<bool>(false);
+    bEnableFlicksMode  = std::make_shared<bool>(false);
+    bShowSafeZone      = std::make_shared<bool>(false);
+    bShowFloorHeight   = std::make_shared<bool>(false);
+    bLogFlickSpeed     = std::make_shared<bool>(false);
+    cvarManager->registerCvar(CVAR_TOGGLE_DRIBBLE_MODE, "0", "Reset the ball if it falls below floor height").bindTo(bEnableDribbleMode);
+    cvarManager->registerCvar(CVAR_TOGGLE_FLICKS_MODE,  "0", "Reset the ball if it goes farther than max flick distance").bindTo(bEnableFlicksMode);
+    cvarManager->registerCvar(CVAR_SHOW_SAFE_ZONE,      "1", "Show where the ball should be to keep it balanced").bindTo(bShowSafeZone);
+    cvarManager->registerCvar(CVAR_SHOW_FLOOR_HEIGHT,   "0", "Show where the reset threshold is for dribbling").bindTo(bShowFloorHeight);
+    cvarManager->registerCvar(CVAR_LOG_FLICK_SPEED,     "1", "Save flick speed to bakkesmod.log so you can see them later").bindTo(bLogFlickSpeed);
 
     //Event hooks
-    gameWrapper->HookEvent("Function Engine.GameViewportClient.Tick", std::bind(&DribbleTrainer::Tick, this));
+    //gameWrapper->HookEvent("Function Engine.GameViewportClient.Tick", std::bind(&DribbleTrainer::Tick, this));
     gameWrapper->RegisterDrawable(bind(&DribbleTrainer::Render, this, std::placeholders::_1));
 
 
     //TEST JUNK
     testLocX = std::make_shared<float>(0.f);
-    cvarManager->registerCvar("Dribble_TestX", "250", "Test location X", true, true, 0, true, 10000).bindTo(testLocX);
     testLocY = std::make_shared<float>(0.f);
-    cvarManager->registerCvar("Dribble_TestY", "0", "Test location Y", true, true, 0, true, 10000).bindTo(testLocY);
     testLocZ = std::make_shared<float>(0.f);
+    cvarManager->registerCvar("Dribble_TestX", "250", "Test location X", true, true, 0, true, 10000).bindTo(testLocX);
+    cvarManager->registerCvar("Dribble_TestY", "0",   "Test location Y", true, true, 0, true, 10000).bindTo(testLocY);
     cvarManager->registerCvar("Dribble_TestZ", "100", "Test location Z", true, true, 0, true, 10000).bindTo(testLocZ);
 }
 void DribbleTrainer::onUnload() {}
@@ -133,282 +128,19 @@ void DribbleTrainer::RequestToggle(std::vector<std::string> params)
     if(params.size() != 2 || !gameWrapper->IsInFreeplay())
         return;
 
-    std::string newval = "0";
+    bool newval = false;
     if(params.at(1) == "dribble")
     {
-        if(!cvarManager->getCvar(CVAR_TOGGLE_DRIBBLE_MODE).getBoolValue())
-            newval = "1";
-        cvarManager->executeCommand(std::string(CVAR_TOGGLE_DRIBBLE_MODE) + " " + newval);
+        if(!(*bEnableDribbleMode))
+            newval = true;
+        cvarManager->getCvar(CVAR_TOGGLE_DRIBBLE_MODE).setValue(newval);
     }
     if(params.at(1) == "flick")
     {
-        if(!cvarManager->getCvar(CVAR_TOGGLE_FLICKS_MODE).getBoolValue())
-            newval = "1";
-        cvarManager->executeCommand(std::string(CVAR_TOGGLE_FLICKS_MODE) + " " + newval);
+        if(!(*bEnableFlicksMode))
+            newval = true;
+        cvarManager->getCvar(CVAR_TOGGLE_FLICKS_MODE).setValue(newval);
     }
-}
-void DribbleTrainer::Render(CanvasWrapper canvas)
-{
-    if(!gameWrapper->IsInFreeplay())
-        return;
-
-    CameraWrapper camera = gameWrapper->GetCamera();
-
-    //Nullchecks
-    bool haveCamera = !camera.IsNull();
-    bool haveCar = !gameWrapper->GetLocalCar().IsNull();
-    bool haveServer = !gameWrapper->GetGameEventAsServer().IsNull();
-    bool haveBall = false;
-    if(haveServer)
-    {
-        if(!gameWrapper->GetGameEventAsServer().GetBall().IsNull())
-            haveBall = true;
-    }
-
-    if(!haveCamera)
-    {
-        return;
-    }
-
-
-    //Create frustum - NEED TO CHECK IF haveCamera IS TRUE BEFORE USING FRUSTUM
-    RA.frustum = RT::Frustum(canvas, camera);
-    //RT::Frustum frustum;
-    //if(haveCamera)
-    //{
-    //    CameraWrapper camera = gameWrapper->GetCamera();
-    //    frustum = RT::CreateFrustum(canvas, camera);
-    //}
-
-    //Show which modes are enabled
-    bool dribbles = cvarManager->getCvar(CVAR_TOGGLE_DRIBBLE_MODE).getBoolValue();
-    bool flicks = cvarManager->getCvar(CVAR_TOGGLE_FLICKS_MODE).getBoolValue();
-    if(dribbles || flicks)
-    {
-        std::string dribblemode = "OFF", flickmode = "OFF", catchmode = "OFF";
-        if(dribbles)
-            dribblemode = "ON";
-        if(flicks)
-            flickmode = "ON";
-
-        int width = canvas.GetSize().X;
-        int height = canvas.GetSize().Y;
-
-        int midline = width/2;
-
-        canvas.SetColor(LinearColor{255,255,255,255});
-        canvas.SetPosition(Vector2{midline-90,height-30});
-        canvas.DrawString("Dribble: " + dribblemode);
-
-        canvas.SetPosition(Vector2{midline+30,height-30});
-        canvas.DrawString("Flick: " + flickmode);
-    }
-
-    //Show floor height
-    if(haveCamera && haveCar && cvarManager->getCvar(CVAR_SHOW_FLOOR_HEIGHT).getBoolValue())
-    {
-        CarWrapper car = gameWrapper->GetLocalCar();
-        Vector drawLocation = car.GetLocation();
-        drawLocation.Z = *floorThreshold;
-
-        RT::Circle floorHeightCircle;
-        floorHeightCircle.orientation = Quat();//RT::RotatorToQuat(Rotator{0,0,0});
-        floorHeightCircle.steps = 24;
-
-        canvas.SetColor(LinearColor{150,150,255,255});
-
-        int circles = 4;
-        for(int i=0; i<circles; i++)
-        {
-            floorHeightCircle.lineThickness = 3;
-            floorHeightCircle.location = drawLocation;
-            floorHeightCircle.radius = 100.f - 8.f * i;
-            floorHeightCircle.Draw(canvas, RA.frustum);//DrawCircle(canvas, frustum, floorHeightCircle);
-
-            canvas.SetColor(LinearColor{150,150,255,255.f / ((i + 1) / 2.f)});
-            floorHeightCircle.lineThickness = 3/(float)(i+1);
-            floorHeightCircle.radius = 100;
-            float heightSegs = *floorThreshold / (circles-1);
-            Vector loc = floorHeightCircle.location;
-            loc.Z = drawLocation.Z - heightSegs * i;
-            floorHeightCircle.location = loc;
-            if(i != 0)
-                floorHeightCircle.Draw(canvas, RA.frustum);//DrawCircle(canvas, frustum, floorHeightCircle);
-        }
-    }
-
-    //Show balance safe zone
-    if(haveCamera && haveBall && haveCar && cvarManager->getCvar(CVAR_SHOW_SAFE_ZONE).getBoolValue())
-    {
-        CameraWrapper camera = gameWrapper->GetCamera();
-        ServerWrapper server = gameWrapper->GetGameEventAsServer();
-        BallWrapper ball = server.GetBall();
-        CarWrapper car = gameWrapper->GetLocalCar();
-        
-        Vector carLocation = car.GetLocation();
-        Vector ballLocation = ball.GetLocation();
-        Vector cameraLocation = camera.GetLocation();
-
-        float ballDistanceMagnitude = (Vector{ballLocation.X, ballLocation.Y, 0} - Vector{carLocation.X, carLocation.Y, 0}).magnitude();
-        if(ballDistanceMagnitude < 300 && carLocation.Z <= ballLocation.Z)
-        {
-            Quat carQuat = RT::RotatorToQuat(car.GetRotation());
-            RT::Matrix3 carMat = RT::Matrix3(carQuat);
-
-            //Crosshair
-            RT::SetColor(canvas, "green");
-            canvas.DrawLine(canvas.Project((carMat.forward * 5) + carLocation), canvas.Project((carMat.forward * 50) + carLocation), 2);//forward
-            canvas.DrawLine(canvas.Project((carMat.right * 5) + carLocation), canvas.Project((carMat.right * 50) + carLocation), 2);//right
-            canvas.DrawLine(canvas.Project((carMat.forward * -5) + carLocation), canvas.Project((carMat.forward * -50) + carLocation), 2);//back
-            canvas.DrawLine(canvas.Project((carMat.right * -5) + carLocation), canvas.Project((carMat.right * -50) + carLocation), 2);//left
-
-            //Good range
-            Vector safeZoneOffset = {0,0,0};
-            safeZoneOffset = safeZoneOffset + (carMat.forward * ballResetPosFwd);
-            safeZoneOffset = safeZoneOffset + (carMat.right * ballResetPosRight);
-
-            RT::Circle goodRangeCircle;
-            goodRangeCircle.radius = 20;
-            goodRangeCircle.location = carLocation + safeZoneOffset;
-            goodRangeCircle.lineThickness = 2;
-            goodRangeCircle.Draw(canvas, RA.frustum);//DrawCircle(canvas, frustum, goodRangeCircle);
-
-            //Car stable circle
-            RT::SetColor(canvas, "green", 100);
-            goodRangeCircle.location = carLocation;
-            goodRangeCircle.lineThickness = 3;
-            goodRangeCircle.orientation = carQuat;
-            goodRangeCircle.Draw(canvas, RA.frustum);//DrawCircle(canvas, frustum, goodRangeCircle);
-
-            //Draw ball's location relative to car
-            Vector ballDot = {ballLocation.X, ballLocation.Y, carLocation.Z};
-            if(RA.frustum.IsInFrustum(ballDot, 5.f))
-            {
-                //Draw crosshair under ball
-                RT::Matrix3 ZRotMatrix;
-                ZRotMatrix = RT::SingleAxisAlignment(ZRotMatrix, carMat.forward, LookAtAxis::AXIS_FORWARD, 1);
-                Quat ZRot = ZRotMatrix.ToQuat();
-                ZRot = RT::NormalizeQuat(ZRot);
-
-                float lineLength = 20;
-                Vector2 line1Start = canvas.Project(RT::RotateVectorWithQuat(Vector{-lineLength,0,0}, ZRot) + ballDot);
-                Vector2 line1End = canvas.Project(RT::RotateVectorWithQuat(Vector{lineLength,0,0}, ZRot) + ballDot);
-                Vector2 line2Start = canvas.Project(RT::RotateVectorWithQuat(Vector{0,-lineLength,0}, ZRot) + ballDot);
-                Vector2 line2End = canvas.Project(RT::RotateVectorWithQuat(Vector{0,lineLength,0}, ZRot) + ballDot);
-                RT::SetColor(canvas, "white");
-                canvas.DrawLine(line1Start, line1End);
-                canvas.DrawLine(line2Start, line2End);
-
-                RT::Circle ballLocationCircle;
-                ballLocationCircle.radius = 4;
-                ballLocationCircle.location = ballDot;
-                ballLocationCircle.steps = 8;
-                ballLocationCircle.Draw(canvas, RA.frustum);//DrawCircle(canvas, frustum, ballLocationCircle);
-
-                //Calculate where the line should terminate just below the ball
-                Vector ballBottom = {ballLocation.X, ballLocation.Y, ballLocation.Z - ball.GetRadius()};
-                if(ballBottom.Z > ballDot.Z)
-                {
-                    if(RA.frustum.IsInFrustum(ballBottom, 0.f))
-                    {
-                        float ballRadius = ball.GetRadius();
-                        RT::Sphere ballSphere = RT::Sphere(ballLocation, ballRadius);
-                        RT::Line ballBottomToCamera(ballBottom, cameraLocation);
-                        RT::Line ballDotToCamera(ballDot, cameraLocation);
-                        bool isBallBottomObscured = ballSphere.IsOccludingLine(ballBottomToCamera);//RT::IsObscuredByObject(ballBottom, cameraLocation, RT::Sphere{ballLocation, ballRadius-.25f});
-                        bool isBallDotObscured = ballSphere.IsOccludingLine(ballDotToCamera);//RT::IsObscuredByObject(ballDot, cameraLocation, RT::Sphere{ballLocation, ballRadius});
-                        if(!isBallDotObscured)
-                        {
-                            if(isBallBottomObscured)
-                            {
-                                //Get tangent point along ball sphere to create the line for the line-plane intersection
-                                Vector cameraToBallCenter = ballLocation - cameraLocation;
-                                Vector cameraToBallBottom = ballBottom - cameraLocation;
-                                Vector projection = RT::VectorProjection(cameraToBallCenter, cameraToBallBottom) + cameraLocation;
-                                Vector projectionToBall = projection - ballLocation;
-                                projectionToBall.normalize();
-                                Vector tangentVert = (projectionToBall * (ballRadius-2)) + ballLocation;
-                                RT::Line line = RT::Line(cameraLocation, tangentVert);
-
-                                //Create a plane at ball's location with normal parallel to ground
-                                Vector planeVec1 = cameraLocation;
-                                Vector planeVec2 = ballLocation;
-                                planeVec1.Z = planeVec2.Z;
-                                Vector planeNormal = planeVec1 - planeVec2;
-                                RT::Plane plane = /*RT::GetPlaneFromLocationAndDirection*/RT::Plane(planeNormal, ballLocation);
-
-                                //Calculate intersection point on plane to assign new Z position to ballBottom
-                                Vector newBallBottom = plane.LinePlaneIntersectionPoint(line);//RT::LinePlaneIntersectionPoint(line, plane);
-                                ballBottom.Z = newBallBottom.Z;
-                            }
-                            canvas.DrawLine(canvas.Project(ballBottom), canvas.Project(ballDot));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    //Show launch countdown circle around ball
-    if(haveCamera && haveBall && preparingToLaunch)
-    {
-        CameraWrapper camera = gameWrapper->GetCamera();
-        ServerWrapper server = gameWrapper->GetGameEventAsServer();
-        BallWrapper ball = server.GetBall();
-
-        float piePercentage = 1 - (clock() - preparationStartTime)/(*preparationTime * CLOCKS_PER_SEC);
-        RT::Matrix3 directionMatrix = RT::LookAt(ball.GetLocation(), camera.GetLocation(), LookAtAxis::AXIS_UP, M_PI_Float * -piePercentage + M_PI_Float);
-
-        RT::Circle circleAroundBall;
-        circleAroundBall.radius = ball.GetRadius();
-        circleAroundBall.location = ball.GetLocation();
-        circleAroundBall.orientation = directionMatrix.ToQuat();
-        circleAroundBall.lineThickness = 4;
-        circleAroundBall.piePercentage = piePercentage;
-        
-        int minSteps = 8;
-        int maxSteps = 40;
-        float distancePerc = RT::GetVisualDistance(canvas, RA.frustum, camera, ball.GetLocation());
-        int calcSteps = (int)(maxSteps * distancePerc);
-        if(calcSteps < minSteps)
-            calcSteps = minSteps;
-        circleAroundBall.steps = calcSteps;
-
-        LinearColor launchColor = RT::GetPercentageColor(1 - nextLaunch.launchMagnitude);
-        RT::SetColor(canvas, launchColor);
-        circleAroundBall.Draw(canvas, RA.frustum);//RT::DrawCircle(canvas, frustum, circleAroundBall);
-    }
-
-
-
-
-    
-    //MATH HELP
-    std::vector<std::string> debugString;
-    
-    /*
-    if(abs(accelDotFwd) > highestDotFwd)
-        highestDotFwd = abs(accelDotFwd);
-    if(abs(accelDotRight) > highestDotRight)
-        highestDotRight = abs(accelDotRight);
-    debugString.push_back("Car Angular Velocity: " + vector_to_string(car.GetAngularVelocity()));
-    debugString.push_back("Car Acceleration: " + vector_to_string(carAcceleration));
-    debugString.push_back("Accel Dot Fwd: " + std::to_string(accelDotFwd));
-    debugString.push_back("Accel Dot Right: " + std::to_string(accelDotRight));
-    debugString.push_back("Highest Dot FWD: " + std::to_string(highestDotFwd));
-    debugString.push_back("Highest Dot RIGHT: " +std::to_string(highestDotRight));
-    debugString.push_back("Car Velocity Forward: " +std::to_string(velocityForward));
-    debugString.push_back("Car Velocity Right: " +std::to_string(velocityRight));
-    */
-    
-    /*
-    debugString.push_back("Fwd reset vals: " + to_string(ballResetFwdVals.size()));
-    debugString.push_back("Fwd buffer time: " + to_string(fwdDurationSeconds));
-    debugString.push_back("Right reset vals: " + to_string(ballResetRightVals.size()));
-    debugString.push_back("Right buffer time: " + to_string(rightDurationSeconds));
-    */
-
-    RT::DrawDebugStrings(canvas, debugString, true);
 }
 
 //Reset
@@ -420,7 +152,7 @@ void DribbleTrainer::Reset()
     CarWrapper car = gameWrapper->GetLocalCar();
     if(abs(car.GetLocation().Y) >= 5120) return;//dont move ball to car if car is in goal
     
-    Quat carQuat = RT::RotatorToQuat(car.GetRotation());
+    Quat carQuat = RotatorToQuat(car.GetRotation());
     RT::Matrix3 carMat = RT::Matrix3(carQuat);
     
     Vector ballAngular = ball.GetAngularVelocity();
@@ -434,6 +166,7 @@ void DribbleTrainer::Reset()
     ball.SetVelocity(car.GetVelocity() + ballResetVelocity);
     ball.SetAngularVelocity(ballAngular, false);
 }
+
 void DribbleTrainer::GetResetValues()
 {
     if(!ShouldRun()) return;
@@ -441,7 +174,7 @@ void DribbleTrainer::GetResetValues()
     BallWrapper ball = server.GetBall();
     CarWrapper car = gameWrapper->GetLocalCar();
 
-    Quat carQuat = RT::RotatorToQuat(car.GetRotation());
+    Quat carQuat = RotatorToQuat(car.GetRotation());
     RT::Matrix3 carMat = RT::Matrix3(carQuat);
 
     Vector carVelocity = car.GetVelocity();
@@ -543,7 +276,9 @@ void DribbleTrainer::GetResetValues()
 //Tick
 void DribbleTrainer::Tick()
 {
-    if(!ShouldRun()) return;
+    //Called inside the render function
+
+    if(!ShouldRun()) { return; }
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
     BallWrapper ball = server.GetBall();
     CarWrapper car = gameWrapper->GetLocalCar();
@@ -553,7 +288,7 @@ void DribbleTrainer::Tick()
     duration<float> timeChange = duration_cast<duration<float>>(steady_clock::now() - previousTime);
     carAcceleration = (speedChange * 0.036f) * (1 / timeChange.count());
     
-    Quat carQuat = RT::RotatorToQuat(car.GetRotation());
+    Quat carQuat = RotatorToQuat(car.GetRotation());
     RT::Matrix3 carMat = RT::Matrix3(carQuat);
     accelDotFwd = Vector::dot(carMat.forward, carAcceleration);//range -150 to 150
     accelDotRight = Vector::dot(carMat.right, carAcceleration);//range -250 to 250
@@ -567,7 +302,7 @@ void DribbleTrainer::Tick()
 
     //MODES
     //Dribble Reset
-    if(cvarManager->getCvar(CVAR_TOGGLE_DRIBBLE_MODE).getBoolValue())
+    if(*bEnableDribbleMode)
     {
         float ballHeight = ball.GetLocation().Z - (ball.GetRadius() + *floorThreshold);
         if(ballHeight <= 0)
@@ -575,7 +310,7 @@ void DribbleTrainer::Tick()
     }
 
     //Flick Reset
-    if(cvarManager->getCvar(CVAR_TOGGLE_FLICKS_MODE).getBoolValue())
+    if(*bEnableFlicksMode)
     {
         Vector ballToCar = ball.GetLocation() - car.GetLocation();
         float flickDistance = ballToCar.magnitude();
@@ -585,9 +320,11 @@ void DribbleTrainer::Tick()
             ballSpeed *= 0.036f;//cms to kph
             if(abs(ball.GetLocation().Y) < 5120 && abs(car.GetLocation().Y) < 5120)
             {
-                gameWrapper->LogToChatbox(std::to_string((int)ballSpeed) + " KPH", "Flick Speed");
-                if(cvarManager->getCvar(CVAR_LOG_FLICK_SPEED).getBoolValue())
+                if(*bLogFlickSpeed)
+                {
+                    gameWrapper->LogToChatbox(std::to_string((int)ballSpeed) + " KPH", "Flick Speed");
                     cvarManager->log("Flick Speed: " + std::to_string((int)ballSpeed) + " KPH");
+                }
             }
             Reset();
         }
@@ -616,13 +353,13 @@ void DribbleTrainer::GetNextLaunchDirection()
     RT::Matrix3 launchDirectionMatrix;
 
     //Rotate around UP axis
-    float UpRotAmount = ((float)rand()/RAND_MAX) * (2.f * M_PI_Float);
+    float UpRotAmount = ((float)rand()/RAND_MAX) * (2.f * CONST_PI_F);
     Quat upRotQuat = RT::AngleAxisRotation(UpRotAmount, launchDirectionMatrix.up);
     launchDirectionMatrix.RotateWithQuat(upRotQuat);// = RT::RotateMatrixWithQuat(launchDirectionMatrix, upRotQuat);
 
     //Rotate around right axis
     float launchAngle = cvarManager->getCvar(CVAR_CATCH_ANGLE).getFloatValue();
-    float RightRotAmount = launchAngle * -(M_PI_Float/180);
+    float RightRotAmount = launchAngle * -(CONST_PI_F / 180);
     Quat rightRotQuat = RT::AngleAxisRotation(RightRotAmount, launchDirectionMatrix.right);
     launchDirectionMatrix.RotateWithQuat(rightRotQuat);// = RT::RotateMatrixWithQuat(launchDirectionMatrix, rightRotQuat);
     

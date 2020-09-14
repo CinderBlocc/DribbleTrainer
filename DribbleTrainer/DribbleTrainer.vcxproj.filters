@@ -140,6 +140,9 @@
     <ClCompile Include="..\RenderingTools\RenderingTools.cpp">
       <Filter>RenderingTools</Filter>
     </ClCompile>
+    <ClCompile Include="DribbleRender.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="G:\Games\steamapps\common\rocketleague\Binaries\Win64\bakkesmod\data\quicksettings\DribbleTrainer.qk" />
