@@ -51,6 +51,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\RenderingTools\Extra\CanvasExtensions.h" />
     <ClInclude Include="..\RenderingTools\Extra\RenderingAssistant.h" />
     <ClInclude Include="..\RenderingTools\Extra\RenderingMath.h" />
     <ClInclude Include="..\RenderingTools\Extra\WrapperStructsExtensions.h" />
@@ -72,6 +73,7 @@
     <ClInclude Include="DribbleTrainer.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\RenderingTools\Extra\CanvasExtensions.cpp" />
     <ClCompile Include="..\RenderingTools\Extra\RenderingAssistant.cpp" />
     <ClCompile Include="..\RenderingTools\Extra\RenderingMath.cpp" />
     <ClCompile Include="..\RenderingTools\Extra\WrapperStructsExtensions.cpp" />
@@ -89,7 +91,6 @@
     <ClCompile Include="..\RenderingTools\Objects\Sphere.cpp" />
     <ClCompile Include="..\RenderingTools\Objects\Triangle.cpp" />
     <ClCompile Include="..\RenderingTools\Objects\VisualCamera.cpp" />
-    <ClCompile Include="..\RenderingTools\RenderingTools.cpp" />
     <ClCompile Include="DribbleRender.cpp" />
     <ClCompile Include="DribbleTrainer.cpp" />
   </ItemGroup>

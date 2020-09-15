@@ -33,27 +33,18 @@ class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
     std::shared_ptr<bool> bShowSafeZone;
     std::shared_ptr<bool> bShowFloorHeight;
     std::shared_ptr<bool> bLogFlickSpeed;
-
-    //TEST JUNK
-    std::shared_ptr<float> testLocX;
-    std::shared_ptr<float> testLocY;
-    std::shared_ptr<float> testLocZ;
     
     //Reset
     struct ResetData
     {
-        float value;
+        Vector location;
         std::chrono::steady_clock::time_point captureTime;
     };
-    std::vector<ResetData> ballResetFwdVals;
-    std::vector<ResetData> ballResetRightVals;
-    float ballResetPosFwd;
-    float ballResetPosRight;
-    float ballResetPosZ;
-    Vector ballResetVelocity;
 
-    float fwdDurationSeconds;
-    float rightDurationSeconds;
+    Vector ballResetVelocity;
+    Vector ballResetLocation;
+
+    bool IsBallHidden = false;
 
     //Catch
     bool preparingToLaunch = false;
@@ -65,17 +56,6 @@ class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
         float launchMagnitude; //range 0-1
     };
     CatchData nextLaunch;
-
-    //Acceleration
-    Vector previousVelocity = {0,0,0};
-    std::chrono::steady_clock::time_point previousTime;
-    Vector carAcceleration = {0,0,0};
-    float accelDotFwd = 0.f;
-    float accelDotRight = 0.f;
-    float highestDotFwd = 0.f;
-    float highestDotRight = 0.f;
-    float velocityForward = 0.f;
-    float velocityRight = 0.f;
 
 public:
     void onLoad() override;
@@ -89,17 +69,22 @@ public:
     void Render(CanvasWrapper canvas);
     void Tick();
     void DrawModesStrings(CanvasWrapper canvas);
-    void DrawFloorHeight(CanvasWrapper canvas);
-    void DrawSafeZone(CanvasWrapper canvas);
-    void DrawLaunchTimer(CanvasWrapper canvas);
+    void DrawFloorHeight(CanvasWrapper canvas, CarWrapper car);
+    void DrawSafeZone(CanvasWrapper canvas, CameraWrapper camera, CarWrapper car, BallWrapper ball);
+    void DrawLineUnderBall(CanvasWrapper canvas, CameraWrapper camera, CarWrapper car, BallWrapper ball);
+    void DrawLaunchTimer(CanvasWrapper canvas, CameraWrapper camera, BallWrapper ball);
 
     //Reset
     void Reset();
-    void GetResetValues();
+    void GetResetValues(BallWrapper ball, CarWrapper car);
+    Vector GetAcceleration(CarWrapper car);
+    void TrimResetDataBuffer(std::vector<ResetData>& Buffer, float MaxBufferTime);
+    Vector GetResetDataBufferAverage(const std::vector<ResetData>& Values);
 
     //Catch
     void PrepareToLaunch();
-    void HoldBallInLaunchPosition();
+    void HoldBallInLaunchPosition(BallWrapper ball, CarWrapper car);
+    Vector GetSafeHoldPosition(Vector InLocation);
     void Launch(int launchIndex);
     void GetNextLaunchDirection();
     Vector CalculateLaunchAngle(Vector start, Vector target, float speed);

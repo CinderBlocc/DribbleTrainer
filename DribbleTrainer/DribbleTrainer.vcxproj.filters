@@ -81,6 +81,9 @@
     <ClInclude Include="..\RenderingTools\RenderingTools.h">
       <Filter>RenderingTools</Filter>
     </ClInclude>
+    <ClInclude Include="..\RenderingTools\Extra\CanvasExtensions.h">
+      <Filter>RenderingTools\Extra</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="DribbleTrainer.cpp">
@@ -137,11 +140,11 @@
     <ClCompile Include="..\RenderingTools\Objects\VisualCamera.cpp">
       <Filter>RenderingTools\Objects</Filter>
     </ClCompile>
-    <ClCompile Include="..\RenderingTools\RenderingTools.cpp">
-      <Filter>RenderingTools</Filter>
-    </ClCompile>
     <ClCompile Include="DribbleRender.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\RenderingTools\Extra\CanvasExtensions.cpp">
+      <Filter>RenderingTools\Extra</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

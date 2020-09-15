@@ -4,58 +4,22 @@
 #include <ctime>
 #include <cstdlib>
 
-//using namespace std;
 using namespace std::chrono;
 
 BAKKESMOD_PLUGIN(DribbleTrainer, "Freeplay training for dribbles, flicks, and catches", "1.0", PLUGINTYPE_FREEPLAY)
 
 /*
-    - Break up rendering function into multiple functions
-*/
-
-
-
-/*
 TO-DO
 
-    - Add catch practice
+    - CATCH
         - Add velocity prediction
         - LEFT OFF HERE: https://www.youtube.com/watch?v=RhUdv0jjfcE&list=PLqwfRVlgGdFAZeT_o-ASucXoFsajXMirw&index=12
         - Make sure during catch preparation time the ball doesn't go out of bounds in the corners
-*/
-/*
-    - Make safe zone dynamic
-        - "Machine learn" where zone should be to keep the ball balanced on the car
-            - While the ball is within a certain distance of the car, gather all the variables.
-                It's pointless to get that data when it isn't within touching range of the car at that frame.
-            - VARIABLES
-                - DECIDING FACTORS
-                    - Car Accel Fwd
-                    - Car Accel Right
-                    - Car Vel Fwd
-                    - Car Vel Right
-                    - Car Angular Vel
-                    - For angled surfaces - EXPLANATION BELOW
-                        - CarUp dot with Z axis
-                        - CarRight dot with Z axis
-                        - CarFwd dot with Z axis
-                - USEFUL FOR GAINING DATA
-                    - Ball location relative to Car Fwd
-                    - Ball location relative to Car Right
-                    - Ball location Z
-                    - Ball Vel relative to Car Fwd
-                    - Ball Vel relative to Car Right
-            - RESULT
-                - (Vector) Ball spawn position relative to car forward
-                - (Vector) Ball spawn position relative to car right
-                - (float) Ball spawn position Z
-                - (Vector) Ball spawn velocity
-        - Only write values if ball has been in a stable relative position to the car
-            - If the average dot of the ballLoc->carLoc vector with the 3 local car axes stays within a certain range then its safe to store those values
-        - ANGLED SURFACES: Vector's dot with Z will determine how much of the position should be subtracted
-            - i.e. When sitting stationary on an angled surface with the left side of the car lower than the right, the ball will need to sit on the upper right side of the car
-            - When turning left around that same angle surface, the ball needs to be on the left side of the car due to angular velocity
-            - Combine the two to subtract the right stationary value from the left turn, and you have the resulting position
+        - Add a target location offset: a float radius centered on the car that the ball will target instead of directly targeting the car
+
+    - BALL RESET
+        - Replace the components of ballResetLocation, with a single ballResetLocation Vector calculated in the Tick function
+        - Make sure to replace the component version in rendering with this new Vector
 */
 
 void DribbleTrainer::onLoad()
@@ -91,35 +55,26 @@ void DribbleTrainer::onLoad()
     cvarManager->registerCvar(CVAR_SHOW_FLOOR_HEIGHT,   "0", "Show where the reset threshold is for dribbling").bindTo(bShowFloorHeight);
     cvarManager->registerCvar(CVAR_LOG_FLICK_SPEED,     "1", "Save flick speed to bakkesmod.log so you can see them later").bindTo(bLogFlickSpeed);
 
-    //Event hooks
-    //gameWrapper->HookEvent("Function Engine.GameViewportClient.Tick", std::bind(&DribbleTrainer::Tick, this));
     gameWrapper->RegisterDrawable(bind(&DribbleTrainer::Render, this, std::placeholders::_1));
 
-
-    //TEST JUNK
-    testLocX = std::make_shared<float>(0.f);
-    testLocY = std::make_shared<float>(0.f);
-    testLocZ = std::make_shared<float>(0.f);
-    cvarManager->registerCvar("Dribble_TestX", "250", "Test location X", true, true, 0, true, 10000).bindTo(testLocX);
-    cvarManager->registerCvar("Dribble_TestY", "0",   "Test location Y", true, true, 0, true, 10000).bindTo(testLocY);
-    cvarManager->registerCvar("Dribble_TestZ", "100", "Test location Z", true, true, 0, true, 10000).bindTo(testLocZ);
+    gameWrapper->HookEvent("Function TAGame.Ball_TA.Explode", [&](std::string eventName){IsBallHidden = true;});
+    gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.StartNewRound", [&](std::string eventName){IsBallHidden = false;});
 }
 void DribbleTrainer::onUnload() {}
 
 //Utility
 bool DribbleTrainer::ShouldRun()
 {
-    if(!gameWrapper->IsInFreeplay())
-        return false;
+    if(!gameWrapper->IsInFreeplay()) { return false; }
 
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
-    if(server.IsNull())
-        return false;
+    if(server.IsNull()) { return false; }
 
     BallWrapper ball = server.GetBall();
     CarWrapper car = gameWrapper->GetLocalCar();
-    if(ball.IsNull() || car.IsNull())
-        return false;
+    if(ball.IsNull() || car.IsNull()) { return false; }
+
+    if(IsBallHidden) { return false; }
 
     return true;
 }
@@ -142,211 +97,200 @@ void DribbleTrainer::RequestToggle(std::vector<std::string> params)
 //Reset
 void DribbleTrainer::Reset()
 {
-    if(!ShouldRun()) return;
+    if(!ShouldRun()) { return; }
+
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
     BallWrapper ball = server.GetBall();
     CarWrapper car = gameWrapper->GetLocalCar();
-    if(abs(car.GetLocation().Y) >= 5120) return;//dont move ball to car if car is in goal
+    RT::Matrix3 carMat(car.GetRotation());
     
-    Quat carQuat = RotatorToQuat(car.GetRotation());
-    RT::Matrix3 carMat = RT::Matrix3(carQuat);
+    //Don't move ball to car if car is in goal
+    if(abs(car.GetLocation().Y) >= 5120) { return; }
     
-    Vector ballAngular = ball.GetAngularVelocity();
-    ballAngular = ballAngular - ballAngular * *angularReduction;
+    //Apply angular velocity reduction
+    Vector ballAngular = ball.GetAngularVelocity() * (1 - *angularReduction);
 
-    //ball.SetLocation(carLocation + spawnOffset + forwardOffset);
-    //ball.SetVelocity(carVelocity + velocityAdjust);
-    Vector positionOffset = Vector{0,0,0} + (carMat.forward * ballResetPosFwd) + (carMat.right * ballResetPosRight);
-    positionOffset.Z = ballResetPosZ;
-    ball.SetLocation(car.GetLocation() + positionOffset);
+    //Vector positionOffset = (carMat.forward * ballResetPosFwd) + (carMat.right * ballResetPosRight);
+    //positionOffset.Z = ballResetPosZ;
+    ball.SetLocation(car.GetLocation() + ballResetLocation);
     ball.SetVelocity(car.GetVelocity() + ballResetVelocity);
     ball.SetAngularVelocity(ballAngular, false);
-}
-
-void DribbleTrainer::GetResetValues()
-{
-    if(!ShouldRun()) return;
-    ServerWrapper server = gameWrapper->GetGameEventAsServer();
-    BallWrapper ball = server.GetBall();
-    CarWrapper car = gameWrapper->GetLocalCar();
-
-    RT::Matrix3 carMat(car.GetRotation());
-
-    Vector carVelocity = car.GetVelocity();
-    Vector carAngular = car.GetAngularVelocity();
-
-    float speedPerc = carVelocity.magnitude() / 2300;
-    float angularPerc = abs(carAngular.Z) / 5.5f;
-    Vector rightOffset = carMat.right * (350 * angularPerc * speedPerc);
-    Vector forwardOffset = carMat.forward * accelDotFwd * 4 * speedPerc;
-    Vector spawnOffset = {0,0,150};
-    Vector velocityAdjust = {0,0,0};
-    
-    //ANGULAR VELOCITY
-    if(car.IsOnGround())
-    {
-        if(carAngular.Z > 0.f)
-        {
-            //right turn
-            spawnOffset = spawnOffset + rightOffset;
-            spawnOffset.Z *= (1 - angularPerc * .75f);
-            forwardOffset = forwardOffset - forwardOffset * angularPerc;
-            velocityAdjust = velocityAdjust - (carMat.right * velocityRight);//carRight velocity is negative from 0 to -215 without powerslide
-        }
-        else if(carAngular.Z < 0.f)
-        {
-            //left turn
-            spawnOffset = spawnOffset - rightOffset;
-            spawnOffset.Z *= (1 - angularPerc * .75f);
-            forwardOffset = forwardOffset - forwardOffset * angularPerc;
-            velocityAdjust = velocityAdjust - (carMat.right * velocityRight);//carRight velocity is positive from 0 to 215 without powerslide
-        }
-
-        velocityAdjust /= 1.5f;
-
-        if(velocityAdjust.magnitude() > 90)
-        {
-            Vector velocityAdjustDirection = velocityAdjust; velocityAdjustDirection.normalize();
-            velocityAdjust = velocityAdjustDirection * 100;
-        }
-    }
-
-    forwardOffset = forwardOffset - forwardOffset * speedPerc;
-    if(spawnOffset.Z < ball.GetRadius())
-        spawnOffset.Z = ball.GetRadius();
-
-    //Get values from data - take average over time
-    Vector finalOffset = spawnOffset + forwardOffset;
-    
-    ResetData fwdVal;
-    fwdVal.captureTime = steady_clock::now();
-    fwdVal.value = Vector::dot(finalOffset, carMat.forward);
-    ballResetFwdVals.push_back(fwdVal);
-    
-    ResetData rightVal;
-    rightVal.captureTime = steady_clock::now();
-    rightVal.value = Vector::dot(finalOffset, carMat.right);
-    ballResetRightVals.push_back(rightVal);
-
-    bool fwdValsAreOK = false;
-    bool rightValsAreOK = false;
-
-    float valueBufferTime = .25f;//Average over .25 seconds
-    while(!fwdValsAreOK || !rightValsAreOK)
-    {
-        //Erase values from vector if they are older than the buffer time
-        if(!fwdValsAreOK)
-        {
-            steady_clock::time_point lastTime = ballResetFwdVals[ballResetFwdVals.size()-1].captureTime;
-            steady_clock::time_point firstTime = ballResetFwdVals[0].captureTime;
-            duration<float> fwdValsDuration = duration_cast<duration<float>>(lastTime - firstTime);
-            fwdDurationSeconds = fwdValsDuration.count();
-            if(fwdDurationSeconds > valueBufferTime)
-                ballResetFwdVals.erase(ballResetFwdVals.begin());
-            else
-                fwdValsAreOK = true;
-        }
-        if(!rightValsAreOK)
-        {
-            steady_clock::time_point lastTime = ballResetRightVals[ballResetRightVals.size()-1].captureTime;
-            steady_clock::time_point firstTime = ballResetRightVals[0].captureTime;
-            duration<float> rightValsDuration = duration_cast<duration<float>>(lastTime - firstTime);
-            rightDurationSeconds = rightValsDuration.count();
-            if(rightDurationSeconds > valueBufferTime)
-                ballResetRightVals.erase(ballResetRightVals.begin());
-            else
-                rightValsAreOK = true;
-        }
-    }
-
-    //Get average of values
-    float fwdAverage = 0;
-    float rightAverage = 0;
-    for(const auto& ballResetFwdVal : ballResetFwdVals)
-        fwdAverage += ballResetFwdVal.value;
-    for(const auto& ballResetRightVal : ballResetRightVals)
-        rightAverage += ballResetRightVal.value;
-
-    fwdAverage /= ballResetFwdVals.size();
-    rightAverage /= ballResetRightVals.size();
-
-    ballResetPosFwd = fwdAverage;
-    ballResetPosRight = rightAverage;
-    ballResetPosZ = spawnOffset.Z;
-    ballResetVelocity = velocityAdjust;
 }
 
 //Tick
 void DribbleTrainer::Tick()
 {
-    //Called inside the render function
+    //Called inside the Render function
 
     if(!ShouldRun()) { return; }
+
     ServerWrapper server = gameWrapper->GetGameEventAsServer();
     BallWrapper ball = server.GetBall();
     CarWrapper car = gameWrapper->GetLocalCar();
 
-    //GET RESET VALUES
-    Vector speedChange = car.GetVelocity() - previousVelocity;
-    duration<float> timeChange = duration_cast<duration<float>>(steady_clock::now() - previousTime);
-    carAcceleration = (speedChange * 0.036f) * (1 / timeChange.count());
-    
-    Quat carQuat = RotatorToQuat(car.GetRotation());
-    RT::Matrix3 carMat = RT::Matrix3(carQuat);
-    accelDotFwd = Vector::dot(carMat.forward, carAcceleration);//range -150 to 150
-    accelDotRight = Vector::dot(carMat.right, carAcceleration);//range -250 to 250
-    velocityForward = Vector::dot(car.GetVelocity(),carMat.forward);
-    velocityRight = Vector::dot(car.GetVelocity(),carMat.right);
+    //Get the ball reset position and velocity
+    GetResetValues(ball, car);
 
-    previousVelocity = car.GetVelocity();
-    previousTime = steady_clock::now();
-
-    GetResetValues();
-
-    //MODES
-    //Dribble Reset
+    //DRIBBLE MODE
+    //If dribble mode is active and ball falls below threshold, reset ball
     if(*bEnableDribbleMode)
     {
         float ballHeight = ball.GetLocation().Z - (ball.GetRadius() + *floorThreshold);
         if(ballHeight <= 0)
-            Reset();
-    }
-
-    //Flick Reset
-    if(*bEnableFlicksMode)
-    {
-        Vector ballToCar = ball.GetLocation() - car.GetLocation();
-        float flickDistance = ballToCar.magnitude();
-        if(flickDistance > *maxFlickDistance)
         {
-            float ballSpeed = ball.GetVelocity().magnitude();
-            ballSpeed *= 0.036f;//cms to kph
-            if(abs(ball.GetLocation().Y) < 5120 && abs(car.GetLocation().Y) < 5120)
-            {
-                if(*bLogFlickSpeed)
-                {
-                    gameWrapper->LogToChatbox(std::to_string((int)ballSpeed) + " KPH", "Flick Speed");
-                    cvarManager->log("Flick Speed: " + std::to_string((int)ballSpeed) + " KPH");
-                }
-            }
             Reset();
         }
     }
 
-    //Catch
+    //FLICK MODE
+    //If ball is farther than threshold distance, reset ball
+    if(*bEnableFlicksMode && !IsBallHidden)
+    {
+        float flickDistance = (ball.GetLocation() - car.GetLocation()).magnitude();
+        if(flickDistance > *maxFlickDistance)
+        {
+            int ballSpeed = static_cast<int>(ball.GetVelocity().magnitude() * 0.036f);//cms to kph
+            cvarManager->log("Flick Speed: " + std::to_string(ballSpeed) + " KPH");
+
+            //If flick speed logging is enabled, log speed via in-game chat
+            if(*bLogFlickSpeed)
+            {
+                gameWrapper->LogToChatbox(std::to_string(ballSpeed) + " KPH", "Flick Speed");
+            }
+
+            //Reset the ball
+            Reset();
+        }
+    }
+
+    //CATCH MODE
+    //If the launch timer is counting down, hold the ball in the air from its launch point
     if(preparingToLaunch)
-        HoldBallInLaunchPosition();
+    {
+        HoldBallInLaunchPosition(ball, car);
+    }
 }
+
+void DribbleTrainer::GetResetValues(BallWrapper ball, CarWrapper car)
+{
+    RT::Matrix3 carMat(car.GetRotation());
+
+    Vector carAcceleration = GetAcceleration(car);
+    Vector carVelocity = car.GetVelocity();
+    Vector carAngular = car.GetAngularVelocity();
+
+    float ForwardAcceleration = Vector::dot(carMat.forward, carAcceleration);//range -150 to 150
+
+    float speedPerc = carVelocity.magnitude() / 2300;
+    float angularPerc = abs(carAngular.Z) / 5.5f;
+    Vector forwardOffset = carMat.forward * ForwardAcceleration * 4.f * speedPerc;
+    Vector rightOffset = carMat.right * (350.f * angularPerc * speedPerc);
+    Vector spawnOffset = {0, 0, 150};
+    Vector velocityAdjust = {0, 0, 0};
+    
+    //Handle left/right offset when turning
+    if(car.IsOnGround())
+    {
+        if(carAngular.Z > 0.f) //right turn
+        {
+            spawnOffset += rightOffset;
+        }
+        else if(carAngular.Z < 0.f) //left turn
+        {
+            spawnOffset -= rightOffset;
+        }
+
+        if(abs(carAngular.Z) > 0.f)
+        {
+            spawnOffset.Z *= (1 - angularPerc * .75f);
+            forwardOffset -= (forwardOffset * angularPerc);
+            forwardOffset -= (carMat.forward * 200.f * min(angularPerc, 1.f));
+            velocityAdjust -= (carMat.right * Vector::dot(carVelocity, carMat.right));
+            velocityAdjust /= 1.5f;
+        }
+
+        constexpr float maxVelocityAdjust = 100;
+        if(velocityAdjust.magnitude() > maxVelocityAdjust)
+        {
+            Vector velocityAdjustDirection = velocityAdjust; 
+            velocityAdjustDirection.normalize();
+            velocityAdjust = velocityAdjustDirection * maxVelocityAdjust;
+        }
+    }
+
+    //Reduce the forward offset amount based on the speed of the car
+    forwardOffset -= (forwardOffset * speedPerc);
+
+    //Make sure ball doesn't spawn in the ground
+    spawnOffset.Z = max(spawnOffset.Z, ball.GetRadius());
+
+    //Create a buffer to hold reset values (buffer is created only once)
+    static std::vector<ResetData> FinalResetVals;
+
+    //Add reset value to buffer and trim buffer to allotted time
+    ResetData FinalResetValue = {spawnOffset + forwardOffset, steady_clock::now()};
+    FinalResetVals.push_back(FinalResetValue);
+    TrimResetDataBuffer(FinalResetVals, .25f);
+
+    //Assign final values to plugin member variables
+    ballResetLocation = GetResetDataBufferAverage(FinalResetVals);
+    ballResetLocation.Z = spawnOffset.Z;
+    ballResetVelocity = velocityAdjust;
+}
+
+Vector DribbleTrainer::GetAcceleration(CarWrapper car)
+{
+    //Statics - these assignments only happen once
+    static Vector previousVelocity = car.GetVelocity();
+    static steady_clock::time_point previousTime = steady_clock::now();
+
+    //Get the change in velocity between the last frame and this frame
+    Vector velocityChange = car.GetVelocity() - previousVelocity;
+    previousVelocity = car.GetVelocity();
+
+    //Get the change in time between the last frame and this frame
+    float timeChange = duration_cast<duration<float>>(steady_clock::now() - previousTime).count();
+    previousTime = steady_clock::now();
+
+    //Calculate the acceleration from the change in velocity and time
+    return (velocityChange * 0.036f) * (1.f / timeChange);
+}
+
+void DribbleTrainer::TrimResetDataBuffer(std::vector<ResetData>& Buffer, float MaxBufferTime)
+{
+    //Loop until buffer is constrained to MaxBufferTime (in seconds)
+    while(true)
+    {
+        auto FirstElementTime = Buffer[0].captureTime;
+        auto LastElementTime = Buffer[Buffer.size()-1].captureTime;
+        float BufferDuration = duration_cast<duration<float>>(LastElementTime - FirstElementTime).count();
+        if(BufferDuration > MaxBufferTime)
+        {
+            //Erase the front element of the buffer if it is too old
+            Buffer.erase(Buffer.begin());
+        }
+        else
+        {
+            //Buffer has successfully been constrained
+            return;
+        }
+    }
+}
+
+Vector DribbleTrainer::GetResetDataBufferAverage(const std::vector<ResetData>& Values)
+{
+    Vector result = 0;
+    for(const auto& resetValue : Values)
+    {
+        result += resetValue.location;
+    }
+    result /= static_cast<float>(Values.size());
+
+    return result;
+}
+
 
 //Catch
-void DribbleTrainer::PrepareToLaunch()
-{
-    preparingToLaunch = true;
-    preparationStartTime = clock();
-    launchNum++;
-    gameWrapper->SetTimeout(std::bind(&DribbleTrainer::Launch, this, launchNum), *preparationTime);
-}
-
 void DribbleTrainer::GetNextLaunchDirection()
 {
     if(!ShouldRun()) return;
@@ -357,49 +301,76 @@ void DribbleTrainer::GetNextLaunchDirection()
     RT::Matrix3 launchDirectionMatrix;
 
     //Rotate around UP axis
-    float UpRotAmount = ((float)rand()/RAND_MAX) * (2.f * CONST_PI_F);
+    float UpRotAmount = (static_cast<float>(rand()) / RAND_MAX) * (2.f * CONST_PI_F);
     Quat upRotQuat = RT::AngleAxisRotation(UpRotAmount, launchDirectionMatrix.up);
-    launchDirectionMatrix.RotateWithQuat(upRotQuat);// = RT::RotateMatrixWithQuat(launchDirectionMatrix, upRotQuat);
+    launchDirectionMatrix.RotateWithQuat(upRotQuat);
 
     //Rotate around right axis
     float launchAngle = cvarManager->getCvar(CVAR_CATCH_ANGLE).getFloatValue();
     float RightRotAmount = launchAngle * -(CONST_PI_F / 180);
     Quat rightRotQuat = RT::AngleAxisRotation(RightRotAmount, launchDirectionMatrix.right);
-    launchDirectionMatrix.RotateWithQuat(rightRotQuat);// = RT::RotateMatrixWithQuat(launchDirectionMatrix, rightRotQuat);
+    launchDirectionMatrix.RotateWithQuat(rightRotQuat);
     
     Vector spawnDirection = launchDirectionMatrix.forward;
     spawnDirection.normalize();
 
-    nextLaunch.launchDirection = spawnDirection;
-
     float launchSpeed = cvarManager->getCvar(CVAR_CATCH_SPEED).getFloatValue();
+
+    nextLaunch.launchDirection = spawnDirection;
     nextLaunch.launchMagnitude = launchSpeed / 5000;
 
     PrepareToLaunch();
 }
 
-void DribbleTrainer::HoldBallInLaunchPosition()
+void DribbleTrainer::PrepareToLaunch()
 {
-    ServerWrapper server = gameWrapper->GetGameEventAsServer();
-    BallWrapper ball = server.GetBall();
-    CarWrapper car = gameWrapper->GetLocalCar();
+    preparingToLaunch = true;
+    preparationStartTime = clock();
+    ++launchNum;
+    gameWrapper->SetTimeout(std::bind(&DribbleTrainer::Launch, this, launchNum), *preparationTime);
+}
+
+void DribbleTrainer::HoldBallInLaunchPosition(BallWrapper ball, CarWrapper car)
+{
+    //Called in Tick
 
     Vector spawnLocation = car.GetLocation() + nextLaunch.launchDirection * (*maxFlickDistance - 150.f);
-    if(spawnLocation.X < -4000)
-        spawnLocation.X = -4000;
-    if(spawnLocation.X > 4000)
-        spawnLocation.X = 4000;
-    if(spawnLocation.Y < -5000)
-        spawnLocation.Y = -5000;
-    if(spawnLocation.Y > 5000)
-        spawnLocation.Y = 5000;
-    if(spawnLocation.Z < 100)
-        spawnLocation.Z = 100;
-    if(spawnLocation.Z > 1900)
-        spawnLocation.Z = 1900;
 
     ball.SetVelocity(Vector{0,0,0});
-    ball.SetLocation(spawnLocation);
+    ball.SetLocation(GetSafeHoldPosition(spawnLocation));
+}
+
+Vector DribbleTrainer::GetSafeHoldPosition(Vector InLocation)
+{
+    //Prevent HoldBallInLaunchPosition() from holding the ball outside the arena
+
+    //Arena height
+    if(InLocation.Z <  100)  { InLocation.Z =  100;  }
+    if(InLocation.Z >  1900) { InLocation.Z =  1900; }
+
+    //All planes to make up the walls, corners, floor, and ceiling.
+    //If the ball is on the wrong side of any of the planes, move it along that plane's normal until it is safe
+
+    //RT::Plane floor
+    //RT::Plane ceiling
+    //RT::Plane posXwall
+    //RT::Plane negXwall
+    //RT::Plane posYwall
+    //RT::Plane negYwall
+    //RT::Plane posXposYcorner
+    //RT::Plane negXposYcorner
+    //RT::Plane posXnegYcorner
+    //RT::Plane negXnegYcorner
+
+    //Arena width
+    if(InLocation.X < -4000) { InLocation.X = -4000; }
+    if(InLocation.X >  4000) { InLocation.X =  4000; }
+
+    //Arena length
+    if(InLocation.Y < -5000) { InLocation.Y = -5000; }
+    if(InLocation.Y >  5000) { InLocation.Y =  5000; }
+
+    return InLocation;
 }
 
 void DribbleTrainer::Launch(int launchIndex)
@@ -451,7 +422,8 @@ void DribbleTrainer::Launch(int launchIndex)
     }
     */
 
-    if(launchIndex != launchNum) return;
+    //Avoid having random launches if user spams launch button
+    if(launchIndex != launchNum) { return; }
 
     preparingToLaunch = false;
 
@@ -462,7 +434,7 @@ void DribbleTrainer::Launch(int launchIndex)
     //this is what needs to be calculated with prediction plugin code
     Vector launchDirection = car.GetLocation() - ball.GetLocation();
     launchDirection.normalize();
-    ball.SetVelocity(launchDirection * (5000 * nextLaunch.launchMagnitude) + car.GetVelocity());
+    ball.SetVelocity(launchDirection * 5000 * nextLaunch.launchMagnitude + car.GetVelocity());
 
     /*int randOffsetScale = 50;
     float randX = rand() % randOffsetScale;
@@ -481,17 +453,12 @@ Vector DribbleTrainer::CalculateLaunchAngle(Vector start, Vector target, float v
     target.Z = start.Z = 0;
     float x = (target - start).magnitude();
 
-    float tanTheta;
     float g = -9.8f;
 
     bool addIt = true;
-    tanTheta = v*v;
-    if(addIt)
-        tanTheta += sqrtf((v*v*v*v) - g * ((g*x*x) + (2*y*v*v)));
-    else
-        tanTheta -= sqrtf((v*v*v*v) - g * ((g*x*x) + (2*y*v*v)));
+    float launchAngle = sqrtf((v*v*v*v) - g * ((g*x*x) + (2*y*v*v)));
+    float tanTheta = addIt ? v*v + launchAngle : v*v - launchAngle;
     tanTheta /= g*x;
-
 
     return atanf(tanTheta);
 }

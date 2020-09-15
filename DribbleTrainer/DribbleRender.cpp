@@ -7,9 +7,17 @@ void DribbleTrainer::Render(CanvasWrapper canvas)
     //Call tick function
     Tick();
 
-    //Create frustum
+    //Nullcheck everything
     CameraWrapper camera = gameWrapper->GetCamera();
     if(camera.IsNull()) { return; }
+    ServerWrapper server = gameWrapper->GetGameEventAsServer();
+    if(server.IsNull()) { return; }
+    BallWrapper ball = server.GetBall();
+    if(ball.IsNull()) { return; }
+    CarWrapper car = gameWrapper->GetLocalCar();
+    if(car.IsNull()) { return; }
+
+    //Create frustum
     RA.frustum = RT::Frustum(canvas, camera);
 
     //Draw text showing which modes are active
@@ -21,19 +29,25 @@ void DribbleTrainer::Render(CanvasWrapper canvas)
     //Draw the floor reset threshold for dribble mode
     if(*bShowFloorHeight)
     {
-        DrawFloorHeight(canvas);
+        DrawFloorHeight(canvas, car);
     }
 
     //Show balance safe zone
     if(*bShowSafeZone)
     {
-        DrawSafeZone(canvas);
+        //Kills the safe zone rendering if the ball is too far away or below the car
+        float ballDistanceMagnitude = (Vector{ball.GetLocation().X, ball.GetLocation().Y, 0} - Vector{car.GetLocation().X, car.GetLocation().Y, 0}).magnitude();
+        if(ballDistanceMagnitude < 300 && car.GetLocation().Z <= ball.GetLocation().Z)
+        {
+            DrawSafeZone(canvas, camera, car, ball);
+            DrawLineUnderBall(canvas, camera, car, ball);
+        }
     }
 
     //Show launch countdown circle around ball
     if(preparingToLaunch)
     {
-        DrawLaunchTimer(canvas);
+        DrawLaunchTimer(canvas, camera, ball);
     }
 
     //MATH HELP
@@ -77,11 +91,8 @@ void DribbleTrainer::DrawModesStrings(CanvasWrapper canvas)
     canvas.DrawString("Flick: " + flickmode);
 }
 
-void DribbleTrainer::DrawFloorHeight(CanvasWrapper canvas)
+void DribbleTrainer::DrawFloorHeight(CanvasWrapper canvas, CarWrapper car)
 {
-    CarWrapper car = gameWrapper->GetLocalCar();
-    if(car.IsNull()) { return; }
-
     Vector drawLocation = car.GetLocation();
     drawLocation.Z = *floorThreshold;
 
@@ -113,97 +124,71 @@ void DribbleTrainer::DrawFloorHeight(CanvasWrapper canvas)
     }
 }
 
-void DribbleTrainer::DrawSafeZone(CanvasWrapper canvas)
+void DribbleTrainer::DrawSafeZone(CanvasWrapper canvas, CameraWrapper camera, CarWrapper car, BallWrapper ball)
 {
-    CameraWrapper camera = gameWrapper->GetCamera();
-    if(camera.IsNull()) { return; }
-    ServerWrapper server = gameWrapper->GetGameEventAsServer();
-    if(server.IsNull()) { return; }
-    BallWrapper ball = server.GetBall();
-    if(ball.IsNull()) { return; }
-    CarWrapper car = gameWrapper->GetLocalCar();
-    if(car.IsNull()) { return; }
-        
-    Vector carLocation = car.GetLocation();
-    Vector ballLocation = ball.GetLocation();
+    //Collect values
     Vector cameraLocation = camera.GetLocation();
-
-    float ballDistanceMagnitude = (Vector{ballLocation.X, ballLocation.Y, 0} - Vector{carLocation.X, carLocation.Y, 0}).magnitude();
-    
-    //This would kill the safe zone rendering if the ball is too far away or below the car
-    //if(ballDistanceMagnitude >= 300 || carLocation.Z > ballLocation.Z) { return; }
-
+    Vector ballLocation = ball.GetLocation();
+    Vector carLocation = car.GetLocation();
     RT::Matrix3 carMat(car.GetRotation());
 
-    //Crosshair
+    //Crosshair and center-of-balance circle
     canvas.SetColor(LinearColor{0,255,0,255});
-    canvas.DrawLine(canvas.Project((carMat.forward *  5) + carLocation), canvas.Project((carMat.forward *  50) + carLocation), 2);//forward
-    canvas.DrawLine(canvas.Project((carMat.right   *  5) + carLocation), canvas.Project((carMat.right   *  50) + carLocation), 2);//right
-    canvas.DrawLine(canvas.Project((carMat.forward * -5) + carLocation), canvas.Project((carMat.forward * -50) + carLocation), 2);//back
-    canvas.DrawLine(canvas.Project((carMat.right   * -5) + carLocation), canvas.Project((carMat.right   * -50) + carLocation), 2);//left
+    RT::Line crosshairFront( carMat.forward *  5 + carLocation, carMat.forward *  50 + carLocation); crosshairFront.thickness = 2; crosshairFront.Draw(canvas);
+    RT::Line crosshairRight( carMat.right   *  5 + carLocation, carMat.right   *  50 + carLocation); crosshairRight.thickness = 2; crosshairRight.Draw(canvas);
+    RT::Line crosshairBack ( carMat.forward * -5 + carLocation, carMat.forward * -50 + carLocation); crosshairBack.thickness  = 2; crosshairBack.Draw(canvas);
+    RT::Line crosshairLeft ( carMat.right   * -5 + carLocation, carMat.right   * -50 + carLocation); crosshairLeft.thickness  = 2; crosshairLeft.Draw(canvas);
+    RT::Circle centerOfBalanceCircle(carLocation, carMat.ToQuat(), 20); centerOfBalanceCircle.lineThickness = 3; centerOfBalanceCircle.Draw(canvas, RA.frustum);
 
-    //Draw where the ball will spawn when it resets
-    Vector safeZoneOffset = {0,0,0};
-    safeZoneOffset = safeZoneOffset + (carMat.forward * ballResetPosFwd);
-    safeZoneOffset = safeZoneOffset + (carMat.right * ballResetPosRight);
-    safeZoneOffset.Z = ballResetPosZ;
+    //DEVELOPMENT TESTING
+    //Draw the vector of the ball's reset velocity
+    //canvas.SetColor(LinearColor{0,100,255,255});
+    //RT::DrawVector(canvas, ballResetVelocity, carLocation + ballResetLocation);
+    //canvas.SetPosition(canvas.Project(carLocation + ballResetLocation) - Vector2{20, 20});
+    //canvas.DrawString(std::to_string(ballResetVelocity.magnitude()));
+    //
+    //Draw the reset location
+    //canvas.SetColor(LinearColor{0,255,0,50});
+    //RT::Sphere ballResetSphere = RT::Sphere(carLocation + ballResetLocation, Quat(), ball.GetRadius());
+    //ballResetSphere.Draw(canvas, RA.frustum, camera.GetLocation(), 64);
+}
 
-    canvas.SetColor(LinearColor{0,100,255,255});
-    RT::DrawVector(canvas, ballResetVelocity, carLocation + safeZoneOffset);
-    canvas.SetPosition(canvas.Project(carLocation + safeZoneOffset) - Vector2{20, 20});
-    canvas.DrawString(std::to_string(ballResetVelocity.magnitude()));
+void DribbleTrainer::DrawLineUnderBall(CanvasWrapper canvas, CameraWrapper camera, CarWrapper car, BallWrapper ball)
+{
+    //Collect values
+    Vector cameraLocation = camera.GetLocation();
+    Vector ballLocation = ball.GetLocation();
+    Vector carLocation = car.GetLocation();
+    RT::Matrix3 carMat(car.GetRotation());
+    RT::Sphere ballSphere = RT::Sphere(ballLocation, ball.GetRadius());
 
-    RT::Sphere ballResetSphere = RT::Sphere(carLocation + safeZoneOffset, Quat(), ball.GetRadius());
-    canvas.SetColor(LinearColor{0,255,0,50});
-    ballResetSphere.Draw(canvas, RA.frustum, camera.GetLocation(), 64);
+    //Check if ball crosshair is inside frustum, or obscured by the ball itself
+    Vector ballCrosshair = {ballLocation.X, ballLocation.Y, carLocation.Z};
+    RT::Line ballCrosshairToCamera(ballCrosshair, cameraLocation);
+    if(!RA.frustum.IsInFrustum(ballCrosshair, 5.f) || ballSphere.IsOccludingLine(ballCrosshairToCamera)) { return; }
 
-    //Car stable circle
-    canvas.SetColor(LinearColor{0,255,0,100});
-    RT::Circle goodRangeCircle;
-    goodRangeCircle.radius = 20;
-    goodRangeCircle.location = carLocation;
-    goodRangeCircle.lineThickness = 3;
-    goodRangeCircle.orientation = carMat.ToQuat();
-    goodRangeCircle.Draw(canvas, RA.frustum);
+    //Check if the bottom of the ball is outside the frustum or if it is below the crosshair
+    Vector ballBottom = {ballLocation.X, ballLocation.Y, ballLocation.Z - ball.GetRadius()};
+    if(ballBottom.Z <= ballCrosshair.Z || !RA.frustum.IsInFrustum(ballBottom, 0.f)) { return; }
 
-    //Draw ball's location relative to car
-    Vector ballDot = {ballLocation.X, ballLocation.Y, carLocation.Z};
-    if(!RA.frustum.IsInFrustum(ballDot, 5.f)) { return; }
-
-    //Draw crosshair under ball
-    RT::Matrix3 ZRotMatrix;
-    ZRotMatrix = RT::SingleAxisAlignment(ZRotMatrix, carMat.forward, LookAtAxis::AXIS_FORWARD, 1);
-    Quat ZRot = ZRotMatrix.ToQuat();
-    ZRot.normalize();
-
+    //Create ball location crosshair. Keep crosshair parallel with ground, but rotated to match car planar rotation
     float lineLength = 20;
-    Vector2 line1Start = canvas.Project(RotateVectorWithQuat(Vector{-lineLength, 0, 0}, ZRot) + ballDot);
-    Vector2 line1End   = canvas.Project(RotateVectorWithQuat(Vector{ lineLength, 0, 0}, ZRot) + ballDot);
-    Vector2 line2Start = canvas.Project(RotateVectorWithQuat(Vector{0, -lineLength, 0}, ZRot) + ballDot);
-    Vector2 line2End   = canvas.Project(RotateVectorWithQuat(Vector{0,  lineLength, 0}, ZRot) + ballDot);
+    Quat ZRot = RT::SingleAxisAlignment(RT::Matrix3(), carMat.forward, LookAtAxis::AXIS_FORWARD, 1).ToQuat();
+    Vector2F line1Start = canvas.ProjectF(RotateVectorWithQuat(Vector{-lineLength, 0, 0}, ZRot) + ballCrosshair);
+    Vector2F line1End   = canvas.ProjectF(RotateVectorWithQuat(Vector{ lineLength, 0, 0}, ZRot) + ballCrosshair);
+    Vector2F line2Start = canvas.ProjectF(RotateVectorWithQuat(Vector{0, -lineLength, 0}, ZRot) + ballCrosshair);
+    Vector2F line2End   = canvas.ProjectF(RotateVectorWithQuat(Vector{0,  lineLength, 0}, ZRot) + ballCrosshair);
+    RT::Circle ballCrosshairCircle(ballCrosshair, Quat(), 4.f); ballCrosshairCircle.steps = 8;
+    
+    //Draw ball location crosshair
     canvas.SetColor(LinearColor{255,255,255,255});
     canvas.DrawLine(line1Start, line1End);
     canvas.DrawLine(line2Start, line2End);
+    ballCrosshairCircle.Draw(canvas, RA.frustum);
 
-    RT::Circle ballLocationCircle;
-    ballLocationCircle.radius = 4;
-    ballLocationCircle.location = ballDot;
-    ballLocationCircle.steps = 8;
-    ballLocationCircle.Draw(canvas, RA.frustum);//DrawCircle(canvas, frustum, ballLocationCircle);
-
-    //Calculate where the line should terminate just below the ball
-    Vector ballBottom = {ballLocation.X, ballLocation.Y, ballLocation.Z - ball.GetRadius()};
-    if(ballBottom.Z <= ballDot.Z || !RA.frustum.IsInFrustum(ballBottom, 0.f)) { return; }
-
-    float ballRadius = ball.GetRadius();
-    RT::Sphere ballSphere = RT::Sphere(ballLocation, ballRadius);
+    //Check if the ball is obscuring the top of the line. If it is, determine new "top" of the line
     RT::Line ballBottomToCamera(ballBottom, cameraLocation);
-    RT::Line ballDotToCamera(ballDot, cameraLocation);
-    bool isBallBottomObscured = ballSphere.IsOccludingLine(ballBottomToCamera);//RT::IsObscuredByObject(ballBottom, cameraLocation, RT::Sphere{ballLocation, ballRadius-.25f});
-    bool isBallDotObscured = ballSphere.IsOccludingLine(ballDotToCamera);//RT::IsObscuredByObject(ballDot, cameraLocation, RT::Sphere{ballLocation, ballRadius});
-    if(isBallDotObscured) { return; }
-
-    if(isBallBottomObscured)
+    if(ballSphere.IsOccludingLine(ballBottomToCamera))
     {
         //Get tangent point along ball sphere to create the line for the line-plane intersection
         Vector cameraToBallCenter = ballLocation - cameraLocation;
@@ -211,7 +196,7 @@ void DribbleTrainer::DrawSafeZone(CanvasWrapper canvas)
         Vector projection = RT::VectorProjection(cameraToBallCenter, cameraToBallBottom) + cameraLocation;
         Vector projectionToBall = projection - ballLocation;
         projectionToBall.normalize();
-        Vector tangentVert = (projectionToBall * (ballRadius-2)) + ballLocation;
+        Vector tangentVert = (projectionToBall * (ball.GetRadius() - 2)) + ballLocation;
         RT::Line line = RT::Line(cameraLocation, tangentVert);
 
         //Create a plane at ball's location with normal parallel to ground
@@ -219,25 +204,19 @@ void DribbleTrainer::DrawSafeZone(CanvasWrapper canvas)
         Vector planeVec2 = ballLocation;
         planeVec1.Z = planeVec2.Z;
         Vector planeNormal = planeVec1 - planeVec2;
-        RT::Plane plane = /*RT::GetPlaneFromLocationAndDirection*/RT::Plane(planeNormal, ballLocation);
+        RT::Plane plane = RT::Plane(planeNormal, ballLocation);
 
         //Calculate intersection point on plane to assign new Z position to ballBottom
-        Vector newBallBottom = plane.LinePlaneIntersectionPoint(line);//RT::LinePlaneIntersectionPoint(line, plane);
+        Vector newBallBottom = plane.LinePlaneIntersectionPoint(line);
         ballBottom.Z = newBallBottom.Z;
     }
 
-    canvas.DrawLine(canvas.Project(ballBottom), canvas.Project(ballDot));
+    //Draw the vertical line from the ball crosshair to the calculated bottom of the ball
+    canvas.DrawLine(canvas.ProjectF(ballBottom), canvas.ProjectF(ballCrosshair));
 }
 
-void DribbleTrainer::DrawLaunchTimer(CanvasWrapper canvas)
+void DribbleTrainer::DrawLaunchTimer(CanvasWrapper canvas, CameraWrapper camera, BallWrapper ball)
 {
-    CameraWrapper camera = gameWrapper->GetCamera();
-    if(camera.IsNull()) { return; }
-    ServerWrapper server = gameWrapper->GetGameEventAsServer();
-    if(server.IsNull()) { return; }
-    BallWrapper ball = server.GetBall();
-    if(ball.IsNull()) { return; }
-
     //Orient the circle so that it points at the camera. Rotate circle as timer counts down to keep it centered
     float piePercentage = 1 - (clock() - preparationStartTime) / (*preparationTime * CLOCKS_PER_SEC);
     RT::Matrix3 directionMatrix = RT::LookAt(ball.GetLocation(), camera.GetLocation(), LookAtAxis::AXIS_UP, CONST_PI_F * -piePercentage + CONST_PI_F);
