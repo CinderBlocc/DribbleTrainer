@@ -13,6 +13,7 @@
 #define CVAR_CATCH_PREPARATION    "Dribble_CatchPreparation"
 #define CVAR_CATCH_SPEED          "Dribble_CatchSpeed"
 #define CVAR_CATCH_ANGLE          "Dribble_CatchAngle"
+#define CVAR_CATCH_SPREAD         "Dribble_CatchSpread"
 #define CVAR_TOGGLE_DRIBBLE_MODE  "Dribble_ToggleDribbleMode"
 #define CVAR_TOGGLE_FLICKS_MODE   "Dribble_ToggleFlicksMode"
 #define CVAR_SHOW_SAFE_ZONE       "Dribble_ShowSafeZone"
@@ -27,6 +28,7 @@ class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
     std::shared_ptr<float> floorThreshold;
     std::shared_ptr<float> maxFlickDistance;
     std::shared_ptr<float> preparationTime;
+    std::shared_ptr<float> catchSpreadAmount;
 
     std::shared_ptr<bool> bEnableDribbleMode;
     std::shared_ptr<bool> bEnableFlicksMode;
@@ -87,5 +89,7 @@ public:
     Vector GetSafeHoldPosition(Vector InLocation);
     void Launch(int launchIndex);
     void GetNextLaunchDirection();
+    Vector GetRandomDirection(float minHorizontalAngle, float maxHorizontalAngle, float minVerticalAngle, float maxVerticalAngle); // In radians
+    float GetRandomPercent(float minVal, float maxVal); // Range 0-1
     Vector CalculateLaunchAngle(Vector start, Vector target, float speed);
 };

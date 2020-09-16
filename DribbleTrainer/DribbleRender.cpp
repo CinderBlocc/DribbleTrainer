@@ -97,7 +97,7 @@ void DribbleTrainer::DrawFloorHeight(CanvasWrapper canvas, CarWrapper car)
     drawLocation.Z = *floorThreshold;
 
     RT::Circle floorHeightCircle;
-    floorHeightCircle.steps = 24;
+    floorHeightCircle.steps = 48;
 
     canvas.SetColor(LinearColor{150,150,255,255});
 
