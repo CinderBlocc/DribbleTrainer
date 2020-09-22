@@ -14,12 +14,7 @@ TO-DO
     - CATCH
         - Add velocity prediction
         - LEFT OFF HERE: https://www.youtube.com/watch?v=RhUdv0jjfcE&list=PLqwfRVlgGdFAZeT_o-ASucXoFsajXMirw&index=12
-        - Make sure during catch preparation time the ball doesn't go out of bounds in the corners
-        - Add a target location offset: a float radius centered on the car that the ball will target instead of directly targeting the car
 
-    - BALL RESET
-        - Replace the components of ballResetLocation, with a single ballResetLocation Vector calculated in the Tick function
-        - Make sure to replace the component version in rendering with this new Vector
 */
 
 void DribbleTrainer::onLoad()
@@ -37,25 +32,30 @@ void DribbleTrainer::onLoad()
     maxFlickDistance  = std::make_shared<float>(0.f);
     preparationTime   = std::make_shared<float>(0.f);
     catchSpreadAmount = std::make_shared<float>(0.f);
-    cvarManager->registerCvar(CVAR_ANGULAR_REDUCTION, "0.5",          "How much the angular velocity should be reduced on reset", true, true, 0,   true, 1).bindTo(angularReduction);
-    cvarManager->registerCvar(CVAR_BALL_FLOOR_HEIGHT, "2",            "How close the ball can get to the floor before resetting", true, true, 0,   true, 100000).bindTo(floorThreshold);
-    cvarManager->registerCvar(CVAR_BALL_MAX_DISTANCE, "1250",         "Max distance the ball can move before resetting to car",   true, true, 300, true, 100000).bindTo(maxFlickDistance);
-    cvarManager->registerCvar(CVAR_CATCH_PREPARATION, "2",            "Preparation time before launching",    true, true, 0,  true, 20).bindTo(preparationTime);
-    cvarManager->registerCvar(CVAR_CATCH_SPEED,       "(1500, 3500)", "Launch speed randomization range",     true, true, 0,  true, 5000);
-    cvarManager->registerCvar(CVAR_CATCH_ANGLE,       "(15, 75)",     "Launch angle randomization range",     true, true, 10, true, 90);
-    cvarManager->registerCvar(CVAR_CATCH_SPREAD,      "2",            "Random radius for ball target spread", true, true, 0,  true, 500).bindTo(catchSpreadAmount);
+    cvarManager->registerCvar(CVAR_ANGULAR_REDUCTION,   "0.5",          "How much the angular velocity should be reduced on reset", true, true, 0,   true, 1).bindTo(angularReduction);
+    cvarManager->registerCvar(CVAR_BALL_FLOOR_HEIGHT,   "2",            "How close the ball can get to the floor before resetting", true, true, 0,   true, 100000).bindTo(floorThreshold);
+    cvarManager->registerCvar(CVAR_BALL_MAX_DISTANCE,   "1250",         "Max distance the ball can move before resetting to car",   true, true, 300, true, 100000).bindTo(maxFlickDistance);
+    cvarManager->registerCvar(CVAR_CATCH_PREPARATION,   "2",            "Preparation time before launching",    true, true, 0,  true, 20).bindTo(preparationTime);
+    cvarManager->registerCvar(CVAR_CATCH_SPEED,         "(1500, 3500)", "Launch speed randomization range",     true, true, 0,  true, 5000);
+    cvarManager->registerCvar(CVAR_CATCH_ANGLE,         "(15, 75)",     "Launch angle randomization range",     true, true, 10, true, 90);
+    cvarManager->registerCvar(CVAR_CATCH_SPREAD,        "100",          "Random radius for ball target spread", true, true, 0,  true, 500).bindTo(catchSpreadAmount);
     
     //Bools
-    bEnableDribbleMode = std::make_shared<bool>(false);
-    bEnableFlicksMode  = std::make_shared<bool>(false);
-    bShowSafeZone      = std::make_shared<bool>(false);
-    bShowFloorHeight   = std::make_shared<bool>(false);
-    bLogFlickSpeed     = std::make_shared<bool>(false);
-    cvarManager->registerCvar(CVAR_TOGGLE_DRIBBLE_MODE, "0", "Reset the ball if it falls below floor height").bindTo(bEnableDribbleMode);
-    cvarManager->registerCvar(CVAR_TOGGLE_FLICKS_MODE,  "0", "Reset the ball if it goes farther than max flick distance").bindTo(bEnableFlicksMode);
-    cvarManager->registerCvar(CVAR_SHOW_SAFE_ZONE,      "1", "Show where the ball should be to keep it balanced").bindTo(bShowSafeZone);
-    cvarManager->registerCvar(CVAR_SHOW_FLOOR_HEIGHT,   "0", "Show where the reset threshold is for dribbling").bindTo(bShowFloorHeight);
-    cvarManager->registerCvar(CVAR_LOG_FLICK_SPEED,     "1", "Save flick speed to bakkesmod.log so you can see them later").bindTo(bLogFlickSpeed);
+    bEnableDribbleMode  = std::make_shared<bool>(false);
+    bEnableFlicksMode   = std::make_shared<bool>(false);
+    bShowSafeZone       = std::make_shared<bool>(false);
+    bShowFloorHeight    = std::make_shared<bool>(false);
+    bLogFlickSpeed      = std::make_shared<bool>(false);
+    bShowTargetLocation = std::make_shared<bool>(false);
+    cvarManager->registerCvar(CVAR_TOGGLE_DRIBBLE_MODE,  "0", "Reset the ball if it falls below floor height").bindTo(bEnableDribbleMode);
+    cvarManager->registerCvar(CVAR_TOGGLE_FLICKS_MODE,   "0", "Reset the ball if it goes farther than max flick distance").bindTo(bEnableFlicksMode);
+    cvarManager->registerCvar(CVAR_SHOW_SAFE_ZONE,       "1", "Show where the ball should be to keep it balanced").bindTo(bShowSafeZone);
+    cvarManager->registerCvar(CVAR_SHOW_FLOOR_HEIGHT,    "0", "Show where the reset threshold is for dribbling").bindTo(bShowFloorHeight);
+    cvarManager->registerCvar(CVAR_LOG_FLICK_SPEED,      "1", "Save flick speed to bakkesmod.log so you can see them later").bindTo(bLogFlickSpeed);
+    cvarManager->registerCvar(CVAR_SHOW_TARGET_LOCATION, "1", "Show the targeted location in Catch mode").bindTo(bShowTargetLocation);
+
+    bDebugMode = std::make_shared<bool>(false);
+    cvarManager->registerCvar(CVAR_DEBUG_MODE, "0", "Draw debug option").bindTo(bDebugMode);
 
     gameWrapper->RegisterDrawable(bind(&DribbleTrainer::Render, this, std::placeholders::_1));
 
@@ -106,8 +106,14 @@ void DribbleTrainer::Reset()
     CarWrapper car = gameWrapper->GetLocalCar();
     RT::Matrix3 carMat(car.GetRotation());
     
-    //Don't move ball to car if car is in goal
-    if(abs(car.GetLocation().Y) >= 5120) { return; }
+    //Don't reset ball if reset location is inside any goal
+    ArrayWrapper<GoalWrapper> goals = server.GetGoals();
+    for(int i = 0; i < goals.Count(); ++i)
+    {
+        GoalWrapper goal = goals.Get(i);
+        if(goal.memory_address == NULL) { continue; }
+        if(IsInGoal(goal, car.GetLocation() + ballResetLocation)) { return; }
+    }
     
     //Apply angular velocity reduction
     Vector ballAngular = ball.GetAngularVelocity() * (1 - *angularReduction);
@@ -117,6 +123,21 @@ void DribbleTrainer::Reset()
     ball.SetLocation(car.GetLocation() + ballResetLocation);
     ball.SetVelocity(car.GetVelocity() + ballResetVelocity);
     ball.SetAngularVelocity(ballAngular, false);
+}
+
+bool DribbleTrainer::IsInGoal(GoalWrapper goal, Vector location)
+{
+    Vector gLoc = goal.GetWorldCenter();
+    Vector gSize = goal.GetWorldExtent();
+
+    if(location.X > gLoc.X + gSize.X) { return false; }
+    if(location.X < gLoc.X - gSize.X) { return false; }
+    if(location.Y > gLoc.Y + gSize.Y) { return false; }
+    if(location.Y < gLoc.Y - gSize.Y) { return false; }
+    if(location.Z > gLoc.Z + gSize.Z) { return false; }
+    if(location.Z < gLoc.Z - gSize.Z) { return false; }
+
+    return true;
 }
 
 //Tick
@@ -190,9 +211,10 @@ void DribbleTrainer::GetResetValues(BallWrapper ball, CarWrapper car)
     Vector spawnOffset = {0, 0, 150};
     Vector velocityAdjust = {0, 0, 0};
     
-    //Handle left/right offset when turning
     if(car.IsOnGround())
     {
+        // Handle spawn location when on the ground //
+
         if(carAngular.Z > 0.f) //right turn
         {
             spawnOffset += rightOffset;
@@ -219,9 +241,20 @@ void DribbleTrainer::GetResetValues(BallWrapper ball, CarWrapper car)
             velocityAdjust = velocityAdjustDirection * maxVelocityAdjust;
         }
     }
+    else
+    {
+        // Handle spawn location when in the air //
 
-    //Reduce the forward offset amount based on the speed of the car
+        spawnOffset += (carVelocity.getNormalized() * 40 + carMat.forward * 25);
+    }
+
+    //Reduce the forward offset amount based on the speed of the car, with a minimum forward position
     forwardOffset -= (forwardOffset * speedPerc);
+
+    //Add some forward offset to start momentum when the car is very slow
+    float forwardOffsetPerc = (1 - speedPerc) * 1.f + speedPerc * .2f;
+    Vector slowForwardOffset = carMat.forward * 30 * forwardOffsetPerc;
+    forwardOffset += slowForwardOffset;
 
     //Make sure ball doesn't spawn in the ground
     spawnOffset.Z = max(spawnOffset.Z, ball.GetRadius());
@@ -297,47 +330,71 @@ void DribbleTrainer::GetNextLaunchDirection()
 {
     if(!ShouldRun()) return;
 
-    CarWrapper car = gameWrapper->GetLocalCar();
-    if(car.IsNull()) return;
+    //CarWrapper car = gameWrapper->GetLocalCar();
+    //if(car.IsNull()) return;
+    //
+    //RT::Matrix3 launchDirectionMatrix;
+    //
+    ////Rotate around UP axis
+    //float UpRotAmount = (static_cast<float>(rand()) / RAND_MAX) * (2.f * CONST_PI_F);
+    //Quat upRotQuat = RT::AngleAxisRotation(UpRotAmount, launchDirectionMatrix.up);
+    //launchDirectionMatrix.RotateWithQuat(upRotQuat);
+    //
+    ////Rotate around right axis
+    //float launchAngle = cvarManager->getCvar(CVAR_CATCH_ANGLE).getFloatValue();
+    //float RightRotAmount = launchAngle * -(CONST_PI_F / 180);
+    //Quat rightRotQuat = RT::AngleAxisRotation(RightRotAmount, launchDirectionMatrix.right);
+    //launchDirectionMatrix.RotateWithQuat(rightRotQuat);
+    //
+    //Vector spawnDirection = launchDirectionMatrix.forward;
+    //spawnDirection.normalize();
+    //
+    //float launchSpeed = cvarManager->getCvar(CVAR_CATCH_SPEED).getFloatValue();
+    //nextLaunch.launchDirection = spawnDirection;
+    //nextLaunch.launchMagnitude = launchSpeed / 5000;
 
-    RT::Matrix3 launchDirectionMatrix;
-
-    //Rotate around UP axis
-    float UpRotAmount = (static_cast<float>(rand()) / RAND_MAX) * (2.f * CONST_PI_F);
-    Quat upRotQuat = RT::AngleAxisRotation(UpRotAmount, launchDirectionMatrix.up);
-    launchDirectionMatrix.RotateWithQuat(upRotQuat);
-
-    //Rotate around right axis
-    float launchAngle = cvarManager->getCvar(CVAR_CATCH_ANGLE).getFloatValue();
-    float RightRotAmount = launchAngle * -(CONST_PI_F / 180);
-    Quat rightRotQuat = RT::AngleAxisRotation(RightRotAmount, launchDirectionMatrix.right);
-    launchDirectionMatrix.RotateWithQuat(rightRotQuat);
-    
-    Vector spawnDirection = launchDirectionMatrix.forward;
-    spawnDirection.normalize();
-
-    float launchSpeed = cvarManager->getCvar(CVAR_CATCH_SPEED).getFloatValue();
-
-    nextLaunch.launchDirection = spawnDirection;
-    nextLaunch.launchMagnitude = launchSpeed / 5000;
+    nextLaunch.launchDirection = GetRandomDirection(-180, 180, -cvarManager->getCvar(CVAR_CATCH_ANGLE).getFloatValue(), -cvarManager->getCvar(CVAR_CATCH_ANGLE).getFloatValue());//spawnDirection;
+    nextLaunch.launchMagnitude = cvarManager->getCvar(CVAR_CATCH_SPEED).getFloatValue() / 5000;
+    nextLaunch.spreadLocation = GetRandomDirection(-180,180,-90,90) * *catchSpreadAmount;
 
     PrepareToLaunch();
 }
 
 Vector DribbleTrainer::GetRandomDirection(float minHorizontalAngle, float maxHorizontalAngle, float minVerticalAngle, float maxVerticalAngle)
 {
+    // Swap mins and maxes if they are incorrect
+    if(minHorizontalAngle > maxHorizontalAngle)
+    {
+        std::swap(minHorizontalAngle, maxHorizontalAngle);
+    }
+    if(minVerticalAngle > maxVerticalAngle)
+    {
+        std::swap(minVerticalAngle, maxVerticalAngle);
+    }
+
+    //Convert parameters from degrees to radians
+    constexpr float DegToRad = CONST_PI_F / 180;
+    minHorizontalAngle *= DegToRad;
+    maxHorizontalAngle *= DegToRad;
+    minVerticalAngle   *= DegToRad;
+    maxVerticalAngle   *= DegToRad;
+
+    //Generate 2 random values from 0 - 1
+    float RandPerc1 = static_cast<float>(rand()) / RAND_MAX;
+    float RandPerc2 = static_cast<float>(rand()) / RAND_MAX;
+
+    //Create rotation matrix
     RT::Matrix3 directionMat;
 
-    //Rotate around UP axis
-    float horizontalRotAmount = (static_cast<float>(rand()) / RAND_MAX) * (2.f * CONST_PI_F);
+    //Rotate around UP axis - horizontal rotation
+    float horizontalRotAmount = ((1 - RandPerc1) * minHorizontalAngle) + (RandPerc1 * maxHorizontalAngle);
     Quat horizontalRotation = RT::AngleAxisRotation(horizontalRotAmount, directionMat.up);
     directionMat.RotateWithQuat(horizontalRotation);
 
-    //Rotate around right axis
-    float launchAngle = cvarManager->getCvar(CVAR_CATCH_ANGLE).getFloatValue();
-    float RightRotAmount = launchAngle * -(CONST_PI_F / 180);
-    Quat rightRotQuat = RT::AngleAxisRotation(RightRotAmount, directionMat.right);
-    directionMat.RotateWithQuat(rightRotQuat);
+    //Rotate around RIGHT axis - vertical rotation
+    float verticalRotAmount = ((1 - RandPerc2) * minVerticalAngle) + (RandPerc2 * maxVerticalAngle);
+    Quat verticalRotation = RT::AngleAxisRotation(verticalRotAmount, directionMat.right);
+    directionMat.RotateWithQuat(verticalRotation);
     
     return directionMat.forward.getNormalized();
 }
@@ -447,7 +504,8 @@ void DribbleTrainer::Launch(int launchIndex)
     CarWrapper car = gameWrapper->GetLocalCar();
 
     //this is what needs to be calculated with prediction plugin code
-    Vector launchDirection = car.GetLocation() - ball.GetLocation();
+    Vector targetLocation = car.GetLocation() + nextLaunch.spreadLocation;
+    Vector launchDirection = targetLocation - ball.GetLocation();
     launchDirection.normalize();
     ball.SetVelocity(launchDirection * 5000 * nextLaunch.launchMagnitude + car.GetVelocity());
 

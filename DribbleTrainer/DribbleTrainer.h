@@ -19,6 +19,8 @@
 #define CVAR_SHOW_SAFE_ZONE       "Dribble_ShowSafeZone"
 #define CVAR_SHOW_FLOOR_HEIGHT    "Dribble_ShowFloorHeight"
 #define CVAR_LOG_FLICK_SPEED      "Dribble_LogFlickSpeed"
+#define CVAR_SHOW_TARGET_LOCATION "Dribble_Show_Target_Location"
+#define CVAR_DEBUG_MODE           "Dribble_DebugMode"
 
 class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
 {
@@ -35,6 +37,9 @@ class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
     std::shared_ptr<bool> bShowSafeZone;
     std::shared_ptr<bool> bShowFloorHeight;
     std::shared_ptr<bool> bLogFlickSpeed;
+    std::shared_ptr<bool> bShowTargetLocation;
+
+    std::shared_ptr<bool> bDebugMode;
     
     //Reset
     struct ResetData
@@ -56,6 +61,7 @@ class DribbleTrainer : public BakkesMod::Plugin::BakkesModPlugin
     {
         Vector launchDirection;
         float launchMagnitude; //range 0-1
+        Vector spreadLocation;
     };
     CatchData nextLaunch;
 
@@ -75,9 +81,11 @@ public:
     void DrawSafeZone(CanvasWrapper canvas, CameraWrapper camera, CarWrapper car, BallWrapper ball);
     void DrawLineUnderBall(CanvasWrapper canvas, CameraWrapper camera, CarWrapper car, BallWrapper ball);
     void DrawLaunchTimer(CanvasWrapper canvas, CameraWrapper camera, BallWrapper ball);
+    void DrawLaunchTarget(CanvasWrapper canvas, CarWrapper car, BallWrapper ball);
 
     //Reset
     void Reset();
+    bool IsInGoal(GoalWrapper goal, Vector location);
     void GetResetValues(BallWrapper ball, CarWrapper car);
     Vector GetAcceleration(CarWrapper car);
     void TrimResetDataBuffer(std::vector<ResetData>& Buffer, float MaxBufferTime);

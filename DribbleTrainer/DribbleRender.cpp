@@ -37,7 +37,15 @@ void DribbleTrainer::Render(CanvasWrapper canvas)
     {
         //Kills the safe zone rendering if the ball is too far away or below the car
         float ballDistanceMagnitude = (Vector{ball.GetLocation().X, ball.GetLocation().Y, 0} - Vector{car.GetLocation().X, car.GetLocation().Y, 0}).magnitude();
-        if(ballDistanceMagnitude < 300 && car.GetLocation().Z <= ball.GetLocation().Z)
+        bool bShouldDrawSafeZone = ballDistanceMagnitude < 300 && car.GetLocation().Z <= ball.GetLocation().Z;
+
+        //If in debug mode, draw the safe zone anywhere
+        if(*bDebugMode)
+        {
+            bShouldDrawSafeZone = true;
+        }
+
+        if(bShouldDrawSafeZone)
         {
             DrawSafeZone(canvas, camera, car, ball);
             DrawLineUnderBall(canvas, camera, car, ball);
@@ -48,6 +56,7 @@ void DribbleTrainer::Render(CanvasWrapper canvas)
     if(preparingToLaunch)
     {
         DrawLaunchTimer(canvas, camera, ball);
+        DrawLaunchTarget(canvas, car, ball);
     }
 
     //MATH HELP
@@ -141,16 +150,19 @@ void DribbleTrainer::DrawSafeZone(CanvasWrapper canvas, CameraWrapper camera, Ca
     RT::Circle centerOfBalanceCircle(carLocation, carMat.ToQuat(), 20); centerOfBalanceCircle.lineThickness = 3; centerOfBalanceCircle.Draw(canvas, RA.frustum);
 
     //DEVELOPMENT TESTING
-    //Draw the vector of the ball's reset velocity
-    //canvas.SetColor(LinearColor{0,100,255,255});
-    //RT::DrawVector(canvas, ballResetVelocity, carLocation + ballResetLocation);
-    //canvas.SetPosition(canvas.Project(carLocation + ballResetLocation) - Vector2{20, 20});
-    //canvas.DrawString(std::to_string(ballResetVelocity.magnitude()));
-    //
-    //Draw the reset location
-    //canvas.SetColor(LinearColor{0,255,0,50});
-    //RT::Sphere ballResetSphere = RT::Sphere(carLocation + ballResetLocation, Quat(), ball.GetRadius());
-    //ballResetSphere.Draw(canvas, RA.frustum, camera.GetLocation(), 64);
+    if(*bDebugMode)
+    {
+        //Draw the vector of the ball's reset velocity
+        canvas.SetColor(LinearColor{0,100,255,255});
+        RT::DrawVector(canvas, ballResetVelocity, carLocation + ballResetLocation);
+        canvas.SetPosition(canvas.Project(carLocation + ballResetLocation) - Vector2{20, 20});
+        canvas.DrawString(std::to_string(ballResetVelocity.magnitude()));
+    
+        //Draw the reset location
+        canvas.SetColor(LinearColor{0,255,0,50});
+        RT::Sphere ballResetSphere = RT::Sphere(carLocation + ballResetLocation, Quat(), ball.GetRadius());
+        ballResetSphere.Draw(canvas, RA.frustum, camera.GetLocation(), 64);
+    }
 }
 
 void DribbleTrainer::DrawLineUnderBall(CanvasWrapper canvas, CameraWrapper camera, CarWrapper car, BallWrapper ball)
@@ -236,4 +248,24 @@ void DribbleTrainer::DrawLaunchTimer(CanvasWrapper canvas, CameraWrapper camera,
     //Draw the circle. Change color based on how fast the ball will be launched
     canvas.SetColor(RT::GetPercentageColor(1 - nextLaunch.launchMagnitude));
     circleAroundBall.Draw(canvas, RA.frustum);
+}
+
+void DribbleTrainer::DrawLaunchTarget(CanvasWrapper canvas, CarWrapper car, BallWrapper ball)
+{
+    if(!(*bShowTargetLocation)) { return; }
+
+    Vector targetLocation = car.GetLocation() + nextLaunch.spreadLocation;
+
+    RT::Line ballToTarget(targetLocation, ball.GetLocation());
+    RT::Plane ground = RT::Plane(0,0,1,0);
+
+    Vector newTarget = targetLocation;
+    if(newTarget.Z < 0)
+    {
+        newTarget = ground.LinePlaneIntersectionPoint(ballToTarget);
+    }
+
+    canvas.SetColor(LinearColor{255,0,0,255});
+    RT::Sphere sphere = RT::Sphere(newTarget, Quat(), 30);
+    sphere.Draw(canvas, RA.frustum, gameWrapper->GetCamera().GetLocation(), 16);
 }
