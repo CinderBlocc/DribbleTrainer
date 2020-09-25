@@ -60,7 +60,7 @@ void DribbleTrainer::onLoad()
     gameWrapper->RegisterDrawable(bind(&DribbleTrainer::Render, this, std::placeholders::_1));
 
     gameWrapper->HookEvent("Function TAGame.Ball_TA.Explode", [&](std::string eventName){IsBallHidden = true;});
-    gameWrapper->HookEvent("Function TAGame.GameEvent_Soccar_TA.StartNewRound", [&](std::string eventName){IsBallHidden = false;});
+    gameWrapper->HookEvent("Function GameEvent_Soccar_TA.Active.StartRound", [&](std::string eventName){IsBallHidden = false;}); //Function TAGame.GameEvent_Soccar_TA.StartNewRound
 }
 void DribbleTrainer::onUnload() {}
 
